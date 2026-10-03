@@ -1,0 +1,555 @@
+import 'package:flutter/material.dart';
+
+import '../core/engine.dart';
+
+enum FieldKind { text, number, multiline, choice, toggle, password }
+
+class ToolField {
+  const ToolField(
+    this.name, {
+    this.value = '',
+    this.kind = FieldKind.text,
+    this.options = const [],
+  });
+  final String name, value;
+  final FieldKind kind;
+  final List<String> options;
+}
+
+ToolField numField(String name, String value) =>
+    ToolField(name, value: value, kind: FieldKind.number);
+ToolField textField(String name, String value, {bool multi = false}) =>
+    ToolField(
+      name,
+      value: value,
+      kind: multi ? FieldKind.multiline : FieldKind.text,
+    );
+ToolField choice(String name, List<String> options, [String? initial]) =>
+    ToolField(
+      name,
+      value: initial ?? options.first,
+      kind: FieldKind.choice,
+      options: options,
+    );
+ToolField toggle(String name, [bool initial = true]) =>
+    ToolField(name, value: '$initial', kind: FieldKind.toggle);
+
+class ToolSpec {
+  const ToolSpec(
+    this.id,
+    this.name,
+    this.category,
+    this.description,
+    this.icon, {
+    this.fields = const [],
+    this.hint = '',
+    this.aliases = '',
+  });
+  final String id, name, category, description, hint, aliases;
+  final IconData icon;
+  final List<ToolField> fields;
+  bool get pdf => id.startsWith('P');
+  Map<String, String> get defaults => {for (final f in fields) f.name: f.value};
+  bool matches(String query) => '$name $description $aliases $id $category'
+      .toLowerCase()
+      .contains(query.toLowerCase());
+}
+
+final tools = <ToolSpec>[
+  const ToolSpec(
+    'P01',
+    'PDF 合并',
+    'PDF',
+    '多份文件，一份文档',
+    Icons.merge_type,
+    aliases: '拼 PDF 合并文档',
+  ),
+  const ToolSpec('P02', 'PDF 拆分', 'PDF', '按页面、范围或固定页数拆分', Icons.call_split),
+  const ToolSpec('P03', '页面提取', 'PDF', '只留下需要的页面', Icons.content_copy),
+  const ToolSpec(
+    'P04',
+    '页面整理',
+    'PDF',
+    '拖动排序、删除、复制与撤销',
+    Icons.dashboard_customize,
+  ),
+  const ToolSpec(
+    'P05',
+    '页面旋转',
+    'PDF',
+    '单页、选中页或整份旋转',
+    Icons.rotate_90_degrees_cw,
+  ),
+  const ToolSpec(
+    'P06',
+    '图片转 PDF',
+    'PDF',
+    '照片排序，生成整洁文档',
+    Icons.photo_library_outlined,
+    aliases: '照片转文档 jpg png',
+  ),
+  const ToolSpec(
+    'P07',
+    'PDF 转图片',
+    'PDF',
+    '导出 PNG 或 JPEG',
+    Icons.image_outlined,
+  ),
+  const ToolSpec(
+    'P08',
+    '添加水印',
+    'PDF',
+    '文字或图片，调节位置和透明度',
+    Icons.branding_watermark,
+  ),
+  const ToolSpec('P09', 'PDF 加密', 'PDF', '用打开密码保护文档', Icons.lock_outline),
+  const ToolSpec('P10', 'PDF 解密', 'PDF', '使用已知密码生成无密码副本', Icons.lock_open),
+  const ToolSpec('P11', '文本提取', 'PDF', '提取文字层并导出', Icons.text_snippet_outlined),
+  const ToolSpec('P12', '文档信息', 'PDF', '页数、尺寸、元数据与加密状态', Icons.info_outline),
+  ToolSpec(
+    'C01',
+    '科学计算器',
+    '计算',
+    '表达式与常用函数',
+    Icons.calculate_outlined,
+    fields: [
+      textField('表达式', 'sin(30)+2^3'),
+      choice('角度模式', ['度', '弧度']),
+    ],
+    hint: '支持 + - * / % ^、pi、e、sin/cos/tan、asin/acos/atan、sqrt、ln、log、abs、exp。乘法需写 *；% 表示取余。',
+  ),
+  ToolSpec(
+    'C02',
+    '万能单位换算',
+    '计算',
+    '八种量纲，统一换算',
+    Icons.swap_horiz,
+    fields: [
+      numField('数值', '25'),
+      choice('原单位', units.keys.toList(), '°C'),
+      choice('目标单位', units.keys.toList(), 'K'),
+    ],
+    hint: '请选择相同类别的单位。kB/MB 使用十进制，KiB/MiB 使用二进制。cal 为热化学卡。',
+  ),
+  ToolSpec(
+    'C03',
+    '百分比与比例',
+    '计算',
+    '占比、变化率、折扣与比例',
+    Icons.percent,
+    fields: [
+      choice('模式', ['占比', '变化率', '折扣', '比例求解']),
+      numField('A', '80'),
+      numField('B', '100'),
+      numField('C', '1'),
+    ],
+    hint: '占比 A/B；变化率 (B−A)/A；折扣 A 为原价，B 为支付百分比；比例 A:B=C:X，C 仅用于比例。',
+  ),
+  ToolSpec(
+    'C04',
+    '随机选择',
+    '计算',
+    '抽签与随机数',
+    Icons.casino_outlined,
+    fields: [
+      choice('模式', ['选项', '整数']),
+      textField('选项', '方案 A\n方案 B\n方案 C', multi: true),
+      numField('最小值', '1'),
+      numField('最大值', '100'),
+      numField('抽取数量', '1'),
+      toggle('允许重复', false),
+    ],
+    hint: '选项每行一个。不重复抽取会先移除重复选项。',
+  ),
+  ToolSpec(
+    'C05',
+    '密码生成',
+    '计算',
+    '安全随机，多种字符组合',
+    Icons.password,
+    fields: [
+      numField('长度', '20'),
+      toggle('小写'),
+      toggle('大写'),
+      toggle('数字'),
+      toggle('符号'),
+    ],
+    hint: '至少包含每种已选字符。密码不写入历史或日志。',
+  ),
+  ToolSpec(
+    'C06',
+    '二维码生成',
+    '计算',
+    '文本、网址与 Wi-Fi',
+    Icons.qr_code_2,
+    fields: [
+      choice('类型', ['文本', '网址', 'Wi-Fi']),
+      textField('内容', 'https://github.com/wxia529/SaiSuite', multi: true),
+      textField('SSID', ''),
+      const ToolField('密码', kind: FieldKind.password),
+      choice('加密', ['WPA', 'WEP', 'nopass']),
+      toggle('隐藏网络', false),
+    ],
+    hint: 'Wi-Fi 信息会写入二维码；保存前核对内容。',
+  ),
+  ToolSpec(
+    'T01',
+    '文本统计',
+    '文本开发',
+    '字符、中文、行与段落',
+    Icons.format_list_numbered,
+    fields: [textField('文本', '赛赛工具箱，让实验与日常更简单。', multi: true)],
+  ),
+  ToolSpec(
+    'T02',
+    '文本清理',
+    '文本开发',
+    '去空白、去重与排序',
+    Icons.cleaning_services_outlined,
+    fields: [
+      textField('文本', '  apple\nbanana\n\napple', multi: true),
+      toggle('去首尾空格'),
+      toggle('去空行'),
+      toggle('去重复行'),
+      choice('排序', ['不排序', '升序', '降序']),
+    ],
+  ),
+  ToolSpec(
+    'T03',
+    '文本对比',
+    '文本开发',
+    '逐行查看新增与删除',
+    Icons.compare_arrows,
+    fields: [
+      textField('原文本', 'alpha\nbeta\ngamma', multi: true),
+      textField('新文本', 'alpha\ndelta\ngamma', multi: true),
+    ],
+    hint: '结果中 + 表示新增，- 表示删除；最多约 1000×1000 行。',
+  ),
+  ToolSpec(
+    'T04',
+    'JSON 工具',
+    '文本开发',
+    '格式化、压缩与错误定位',
+    Icons.data_object,
+    fields: [
+      choice('模式', ['格式化', '压缩']),
+      textField('JSON', '{"name":"SaiSuite","offline":true}', multi: true),
+    ],
+  ),
+  ToolSpec(
+    'T05',
+    'Base64',
+    '文本开发',
+    'UTF-8 编码与解码',
+    Icons.code,
+    fields: [
+      choice('模式', ['编码', '解码']),
+      textField('文本', '赛赛工具箱', multi: true),
+    ],
+  ),
+  ToolSpec(
+    'T06',
+    'URL 编解码',
+    '文本开发',
+    '组件编码、解码与参数',
+    Icons.link,
+    fields: [
+      choice('模式', ['编码', '解码', '查看参数']),
+      textField('文本', '赛赛工具箱', multi: true),
+    ],
+  ),
+  ToolSpec(
+    'T07',
+    'Hash 校验',
+    '文本开发',
+    '文本与文件摘要',
+    Icons.fingerprint,
+    fields: [
+      choice('算法', ['SHA-256', 'SHA-1', 'MD5']),
+      textField('文本', 'SaiSuite', multi: true),
+      textField('预期校验值', ''),
+    ],
+    hint: '可选择文件，按流计算摘要；MD5/SHA-1 用于兼容旧校验，不用于安全认证。',
+  ),
+  ToolSpec(
+    'T08',
+    '颜色转换',
+    '文本开发',
+    'HEX、RGB、HSL',
+    Icons.palette_outlined,
+    fields: [
+      choice('格式', ['HEX', 'RGB', 'HSL']),
+      textField('颜色', '#147D73'),
+    ],
+    hint: 'RGB 输入 0—255；HSL 输入 H(度), S(%), L(%)，不写百分号。',
+  ),
+  ToolSpec(
+    'S01',
+    '摩尔质量',
+    '科研',
+    '化学式与元素质量占比',
+    Icons.science_outlined,
+    fields: [textField('化学式', 'LiFePO4')],
+    hint: '支持小数计量、括号和方括号、水合物（CuSO4·5H2O）。CIAAW 2024 约化标准原子量；不支持电荷与同位素标记。',
+  ),
+  ToolSpec(
+    'S02',
+    '浓度与配液',
+    '科研',
+    '称量质量、浓度与定容体积',
+    Icons.water_drop_outlined,
+    fields: [
+      choice('求解', ['称量质量', '浓度', '最终体积']),
+      numField('摩尔质量', '151.90'),
+      numField('浓度 mol/L', '1'),
+      numField('最终体积 mL', '10'),
+      numField('称量质量 g', '1.519'),
+    ],
+    hint: '按最终溶液体积定容；摩尔质量单位 g/mol。',
+  ),
+  ToolSpec(
+    'S03',
+    '稀释计算',
+    '科研',
+    '原液用量与目标体积',
+    Icons.opacity,
+    fields: [
+      numField('原液浓度', '1'),
+      numField('目标浓度', '0.1'),
+      numField('目标体积 mL', '100'),
+    ],
+  ),
+  ToolSpec(
+    'S04',
+    'C-rate 计算',
+    '科研',
+    '容量、倍率与电流',
+    Icons.battery_charging_full,
+    fields: [
+      choice('求解', ['电流', '倍率']),
+      numField('容量 mAh', '2'),
+      numField('倍率 C', '0.5'),
+      numField('电流 mA', '1'),
+    ],
+  ),
+  ToolSpec(
+    'S05',
+    '电极载量与面容量',
+    '科研',
+    '活性质量、面积与容量',
+    Icons.layers_outlined,
+    fields: [
+      numField('面积 cm²', '1.13'),
+      numField('活性物质质量 mg', '2'),
+      numField('比容量 mAh/g', '160'),
+    ],
+  ),
+  ToolSpec(
+    'S06',
+    '科研能量换算',
+    '科研',
+    'eV、摩尔能量与光子波长',
+    Icons.bolt_outlined,
+    fields: [
+      numField('数值', '3.7'),
+      choice('输入单位', ['eV', 'kJ/mol', 'kcal/mol', 'nm']),
+    ],
+    hint: '波长与频率结果采用光子关系 E=hν=hc/λ。',
+  ),
+  ToolSpec(
+    'D01',
+    '日期差',
+    '日期时间',
+    '两个日历日期相差天数',
+    Icons.date_range,
+    fields: [
+      textField('起始日期', '2026-10-04'),
+      textField('结束日期', '2027-01-12'),
+      toggle('含起止日', false),
+    ],
+  ),
+  ToolSpec(
+    'D02',
+    '日期推算',
+    '日期时间',
+    '指定日期加减天数',
+    Icons.event_available,
+    fields: [textField('日期', '2026-10-04'), numField('天数', '100')],
+  ),
+  ToolSpec(
+    'D03',
+    '时间戳转换',
+    '日期时间',
+    '秒、毫秒与带时区的日期',
+    Icons.schedule,
+    fields: [
+      choice('方向', ['时间戳 → 日期', '日期 → 时间戳']),
+      choice('精度', ['秒', '毫秒']),
+      numField('时间戳', '0'),
+      textField('ISO 日期', '2026-10-04T12:00:00+08:00'),
+    ],
+  ),
+  ToolSpec(
+    'D04',
+    '时区换算',
+    '日期时间',
+    'IANA 时区与夏令时',
+    Icons.public,
+    fields: [
+      textField('当地日期时间', '2026-10-04 12:00:00'),
+      choice('原时区', timezones, 'Asia/Shanghai'),
+      choice('目标时区', timezones, 'America/New_York'),
+    ],
+  ),
+  ToolSpec(
+    'EC01',
+    '电极面积',
+    '电化学',
+    '圆片、矩形、环形',
+    Icons.crop,
+    fields: [
+      choice('形状', ['圆片', '矩形', '环形']),
+      numField('直径 mm', '12'),
+      numField('长 mm', '10'),
+      numField('宽 mm', '10'),
+      numField('外径 mm', '12'),
+      numField('内径 mm', '6'),
+    ],
+  ),
+  ToolSpec(
+    'EC02',
+    '电流与容量归一化',
+    '电化学',
+    '质量与面积口径明确',
+    Icons.straighten,
+    fields: [
+      numField('电流 mA', '1'),
+      numField('容量 mAh', '0.32'),
+      numField('活性物质质量 mg', '2'),
+      numField('面积 cm²', '1.13'),
+    ],
+  ),
+  ToolSpec(
+    'EC03',
+    '理论比容量',
+    '电化学',
+    '由反应电子数计算',
+    Icons.functions,
+    fields: [textField('化学式', 'LiFePO4'), numField('电子转移数', '1')],
+  ),
+  ToolSpec(
+    'EC04',
+    'N/P 配平',
+    '电化学',
+    '面容量比与有效总容量比',
+    Icons.balance,
+    fields: [
+      numField('正极载量 mg/cm²', '10'),
+      numField('正极比容量 mAh/g', '160'),
+      numField('正极有效面积 cm²', '1.13'),
+      numField('负极载量 mg/cm²', '5'),
+      numField('负极比容量 mAh/g', '350'),
+      numField('负极有效面积 cm²', '1.13'),
+      numField('目标 N/P', '1.1'),
+    ],
+  ),
+  ToolSpec(
+    'EC05',
+    '浆料配方',
+    '电化学',
+    '干固体、溶液与固含量',
+    Icons.blender_outlined,
+    fields: [
+      numField('干固体 g', '1'),
+      numField('活性物质 wt%', '80'),
+      numField('导电剂 wt%', '10'),
+      numField('粘结剂 wt%', '10'),
+      numField('浆料固含量 wt%', '40'),
+      numField('粘结剂溶液 wt%', '10'),
+    ],
+  ),
+  ToolSpec(
+    'EC08',
+    '电解液用量',
+    '电化学',
+    'E/C 与 E/S',
+    Icons.local_drink_outlined,
+    fields: [
+      numField('电解液 µL', '20'),
+      numField('密度 g/mL', '1.2'),
+      numField('容量 mAh', '2'),
+      numField('硫质量 mg', '1'),
+      numField('目标 E/C µL/mAh', '10'),
+    ],
+  ),
+  ToolSpec(
+    'EC09',
+    '混合溶剂配比',
+    '电化学',
+    '按质量或体积比例分配',
+    Icons.tune,
+    fields: [
+      choice('配比基准', ['质量比', '体积比']),
+      numField('目标总量', '10'),
+      textField('组分：名称,比例,密度', 'EC,1,1.32\nDEC,1,0.97', multi: true),
+    ],
+    hint: '总量按质量比为 g，按体积比为 mL；密度需填写实验温度下的实测或有来源值，示例仅演示输入。',
+  ),
+  ToolSpec(
+    'EC14',
+    '参比电位换算',
+    '电化学',
+    '自定义参比偏移与 RHE',
+    Icons.electrical_services,
+    fields: [
+      numField('原电位 V', '0.5'),
+      numField('原参比 vs SHE V', '0'),
+      numField('目标参比 vs SHE V', '0'),
+      choice('目标基准', ['自定义参比', 'RHE']),
+      numField('温度 °C', '25'),
+      numField('pH', '7'),
+    ],
+    hint: '不预设通用 Ag/AgCl 数值，请填入对应填充液和温度的校准偏移。RHE 模式忽略目标参比偏移。',
+  ),
+  ToolSpec(
+    'EC16',
+    'iR 校正',
+    '电化学',
+    '扣除剩余未补偿压降',
+    Icons.show_chart,
+    fields: [
+      numField('测得电位 V', '0.5'),
+      numField('电流 mA', '10'),
+      numField('未补偿电阻 Ω', '5'),
+      numField('已补偿 %', '0'),
+    ],
+  ),
+  ToolSpec(
+    'EC21',
+    '电流积分与容量',
+    '电化学',
+    '导入时间—电流 CSV',
+    Icons.area_chart_outlined,
+    fields: [
+      textField('时间 s,电流 mA', 'time,current\n0,1\n1800,1\n3600,1', multi: true),
+    ],
+    hint: '支持两列 CSV/TSV（time 为可选表头）；时间 s、电流 mA，严格递增；正负电流分开积分。可导入文件，导出记录保留输入、单位和公式条件。',
+  ),
+];
+const timezones = [
+  'UTC',
+  'Asia/Shanghai',
+  'Asia/Tokyo',
+  'Asia/Kolkata',
+  'Asia/Singapore',
+  'Europe/London',
+  'Europe/Paris',
+  'Europe/Berlin',
+  'America/New_York',
+  'America/Chicago',
+  'America/Los_Angeles',
+  'Australia/Sydney',
+  'Pacific/Auckland',
+];
+const categories = ['全部', 'PDF', '计算', '文本开发', '科研', '日期时间', '电化学'];
