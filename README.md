@@ -22,6 +22,7 @@
 
 - [使用说明](docs/USER_GUIDE.md)：操作流程、数据口径与限制。
 - [开发指南](docs/DEVELOPMENT_GUIDE.md)：范围、里程碑、完成定义。
+- [下一阶段范围](docs/NEXT_VERSION_SCOPE.md)：点按计算器、配色、计时、画板、媒体与设备工具，以及不保存实验记录的电解液计算。
 - [构建说明](docs/BUILD.md)：工具链、签名、构建与测试命令。
 - [验收记录](docs/ACCEPTANCE.md)：逐项功能矩阵、设备和验证证据。
 - [依赖与许可](docs/DEPENDENCIES.md)：PDF 原生服务、离线数据来源。
