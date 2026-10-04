@@ -13,7 +13,8 @@
 | NDK / CMake | 28.2.13676358 / 3.22.1 |
 | Gradle / AGP | 9.3.1 / 9.1.0 |
 | Kotlin | 2.4.0；JVM 17 字节码 |
-| 验收设备 | Medium Phone 模拟器，Android 17 / API 37，x86_64，WHPX |
+| 默认测试设备 | `SaiSuite_API_33` 模拟器，Android 13 / API 33，x86_64，WHPX |
+| 既往验收设备 | Medium Phone 模拟器，Android 17 / API 37，x86_64，WHPX |
 
 依赖锁定于 `pubspec.lock`。首次构建需要网络下载 SDK、Maven 和 Pub 依赖；应用运行不需要联网。最终 APK 验证 minSdk 24（Android 7.0）、targetSdk 36，三种 ABI。正式 manifest 没有 INTERNET 或广泛文件访问权限，文件通过系统授权 URI 读取和保存。
 
@@ -34,14 +35,16 @@ keyAlias=saisuite
 
 ## 命令
 
+用户指定以后默认在 Android 13（API 33）测试。使用 `SaiSuite_API_33` 测试模拟器；当前设备 ID 为 `emulator-5556`，运行前通过 `flutter devices` 核对实际 ID，并用 `adb -s emulator-5556 shell getprop ro.build.version.sdk` 确认输出为 `33`。其他系统版本及实体硬件按改动需要补充验证。测试平台不改变 minSdk 24、targetSdk/compileSdk 36。
+
 在工程根目录运行，Flutter 已在 PATH 时可直接调用：
 
 ```powershell
 flutter pub get
 flutter analyze
 flutter test
-flutter test integration_test/pdf_test.dart -d emulator-5554
-flutter test integration_test/tools_test.dart -d emulator-5554
+flutter test integration_test/pdf_test.dart -d emulator-5556
+flutter test integration_test/tools_test.dart -d emulator-5556
 flutter build apk --release
 ```
 
