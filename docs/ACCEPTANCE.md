@@ -88,7 +88,7 @@
 
 - 路径：`dist/SaiSuite-1.0.0-universal.apk`，66,880,506 字节，约 63.8 MiB。
 - 版本：`1.0.0`，versionCode `2`；包名 `io.github.wxia529.saisuite`。
-- SHA-256：`91b1a710168e7233232dd8c90ee036e5bc1ed96f3c1bbe8bcb8d19bfff6d90ba`。
+- SHA-256：`cee2ef87a2af197b9b3a8b67db383b948b324ea156ff1a212b58b54d97bbc561`。
 - `apksigner verify --verbose`：通过，APK Signature Scheme v2，1 个签名者。
 - 实际执行 `adb install -r` 成功，启动正常，已有深色主题与收藏保留；设备包信息确认 minSdk 24、targetSdk 36。
 - 正式 manifest 没有 INTERNET 或广泛文件访问权限。分享与系统文件提供器由用户选择；应用本身不上传文件。
@@ -100,13 +100,17 @@
 
 | 文件 | 大小 MiB | versionCode | SHA-256 |
 |---|---:|---:|---|
-| SaiSuite-1.0.0-arm64-v8a.apk | 29.79 | 2002 | `5a3fc76b6bd6688ca09e2447dc538dcb5eb14f9c080ae18df91e95242d98fd61` |
-| SaiSuite-1.0.0-armeabi-v7a.apk | 27.35 | 1002 | `603018a0a2ebfa4c5fe0f22a7493b64d72171e1bc254e8174a7c52530c1812c2` |
-| SaiSuite-1.0.0-x86_64.apk | 31.20 | 4002 | `fb66ca94daa4a2a215187fa3806503a6de5dd60e3be5ddcb19dc6b46f0405ee3` |
+| SaiSuite-1.0.0-arm64-v8a.apk | 29.79 | 2002 | `89308e79dab7c3f250b6be3bf81568813514c95447644b6cb735fd8e51deb6dc` |
+| SaiSuite-1.0.0-armeabi-v7a.apk | 27.35 | 1002 | `0ae7ef2d7e92d8908c6116ec624a46b797503ee6f4704e59c8494556e4e17265` |
+| SaiSuite-1.0.0-x86_64.apk | 31.20 | 4002 | `84e9ce3df7b1a54812f5a5ec9a1919d6069b01bb1aa032e29b90e45cc8d3f311` |
 
 - `aapt dump badging` 核对每包仅含对应 ABI；包名、版本名、compileSdk 36、targetSdk 36 和 minSdk 24 正确。
 - 三包 `apksigner verify --verbose --print-certs` 均通过，证书 SHA-256 为 `86d06951211ad5412b4dd90079a379b46bbc223933b9891599835ff2dd99b250`。
 - 每包公共 DEX、资源、对应 ABI 的原生库与通用包逐文件 SHA-256 一致，没有更改工具功能。
 - 当前 x86_64 模拟器执行 `adb install -r` 成功，启动显示 46 个工具，原有深色主题与收藏保留，设备包信息确认 versionCode 4002 和 primaryCpuAbi x86_64。
-- ARM64 与 ARM32 包完成构建、内容与签名验证，尚未在对应实体设备上安装测试。本次没有改动业务代码，因此没有重复运行原有逻辑测试。
+- ARM64 与 ARM32 包完成构建、内容与签名验证，尚未在对应实体设备上安装测试。首页文案调整后，静态检查与 64 项既有测试再次通过。
 - 构建和检查日志保存在 `.buildlog/split-release.log`、各 ABI 的 signature 日志与 `split-inspection.json`。安装选择与版本升级规则见使用说明和构建说明。
+
+## 首页文案调整（2026-10-04）
+
+删除右上角「离线可用」及「从一份 PDF 到一次电化学计算，把常用工具放在一起。」说明，并移除相应间距。重新构建 Universal 和三个独立架构包，更新全部校验值；四包签名与 ABI 检查通过。x86_64 模拟器覆盖安装成功，浅色、深色首页均已查看并更新截图，原有收藏保留。

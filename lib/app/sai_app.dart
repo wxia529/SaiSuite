@@ -152,8 +152,6 @@ class _HomeShellState extends State<HomeShell> {
               style: Theme.of(context).textTheme.headlineMedium
                   ?.copyWith(fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 8),
-            const Text('从一份 PDF 到一次电化学计算，\n把常用工具放在一起。'),
             const SizedBox(height: 20),
             FilledButton.icon(
               onPressed: () => setState(() {
@@ -389,21 +387,6 @@ class _HomeShellState extends State<HomeShell> {
     builder: (context, _) => Scaffold(
       appBar: AppBar(
         title: Text(['赛赛工具箱', '全部工具', '我的收藏', '设置'][tab]),
-        actions: [
-          if (tab == 0)
-            Padding(
-              padding: const EdgeInsets.only(right: 20),
-              child: Center(
-                child: Text(
-                  '离线可用',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-              ),
-            ),
-        ],
       ),
       body: Center(
         child: ConstrainedBox(
