@@ -93,3 +93,20 @@
 - 实际执行 `adb install -r` 成功，启动正常，已有深色主题与收藏保留；设备包信息确认 minSdk 24、targetSdk 36。
 - 正式 manifest 没有 INTERNET 或广泛文件访问权限。分享与系统文件提供器由用户选择；应用本身不上传文件。
 - 签名文件 `.private/saisuite-release.jks` 与 `android/key.properties` 被 Git 忽略，需一并安全备份以维持后续覆盖升级。
+
+## 独立架构包补充验收
+
+2026-10-04 按用户要求增加三个独立架构包，保留原通用 APK。`flutter build apk --release --split-per-abi` 成功。
+
+| 文件 | 大小 MiB | versionCode | SHA-256 |
+|---|---:|---:|---|
+| SaiSuite-1.0.0-arm64-v8a.apk | 29.79 | 2002 | `5a3fc76b6bd6688ca09e2447dc538dcb5eb14f9c080ae18df91e95242d98fd61` |
+| SaiSuite-1.0.0-armeabi-v7a.apk | 27.35 | 1002 | `603018a0a2ebfa4c5fe0f22a7493b64d72171e1bc254e8174a7c52530c1812c2` |
+| SaiSuite-1.0.0-x86_64.apk | 31.20 | 4002 | `fb66ca94daa4a2a215187fa3806503a6de5dd60e3be5ddcb19dc6b46f0405ee3` |
+
+- `aapt dump badging` 核对每包仅含对应 ABI；包名、版本名、compileSdk 36、targetSdk 36 和 minSdk 24 正确。
+- 三包 `apksigner verify --verbose --print-certs` 均通过，证书 SHA-256 为 `86d06951211ad5412b4dd90079a379b46bbc223933b9891599835ff2dd99b250`。
+- 每包公共 DEX、资源、对应 ABI 的原生库与通用包逐文件 SHA-256 一致，没有更改工具功能。
+- 当前 x86_64 模拟器执行 `adb install -r` 成功，启动显示 46 个工具，原有深色主题与收藏保留，设备包信息确认 versionCode 4002 和 primaryCpuAbi x86_64。
+- ARM64 与 ARM32 包完成构建、内容与签名验证，尚未在对应实体设备上安装测试。本次没有改动业务代码，因此没有重复运行原有逻辑测试。
+- 构建和检查日志保存在 `.buildlog/split-release.log`、各 ABI 的 signature 日志与 `split-inspection.json`。安装选择与版本升级规则见使用说明和构建说明。

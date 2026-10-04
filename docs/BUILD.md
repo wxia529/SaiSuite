@@ -48,6 +48,26 @@ flutter build apk --release
 
 APK 输出 `build/app/outputs/flutter-apk/app-release.apk`，交付副本 `dist/SaiSuite-1.0.0.apk`。默认 APK 包含 arm64-v8a、armeabi-v7a 与 x86_64。需要独立架构包可另外执行 `flutter build apk --release --split-per-abi`。
 
+### 已交付的独立架构包
+
+2026-10-04 已执行：
+
+```powershell
+flutter build apk --release --split-per-abi
+```
+
+| ABI | dist 文件 | 大小 | versionCode |
+|---|---|---:|---:|
+| arm64-v8a | SaiSuite-1.0.0-arm64-v8a.apk | 31,235,480 字节 / 29.79 MiB | 2002 |
+| armeabi-v7a | SaiSuite-1.0.0-armeabi-v7a.apk | 28,676,960 字节 / 27.35 MiB | 1002 |
+| x86_64 | SaiSuite-1.0.0-x86_64.apk | 32,719,248 字节 / 31.20 MiB | 4002 |
+
+Flutter 输出文件名是 `app-<ABI>-release.apk`，交付时复制到上表名称。三包与通用包采用同一签名证书，versionName 均为 1.0.0，compileSdk/targetSdk 为 36，minSdk 为 24。每包只包含对应 ABI；公共代码、资源与对应原生库经 SHA-256 比对，与通用包完全相同。
+
+Flutter 的独立包默认加入 ABI 对应的 versionCode 偏移，因此数值不同于通用包的 2。同架构后续独立包继续增加基础 build number；若改为通用包覆盖已经安装的独立包，通用包 versionCode 必须高于已安装包。当前模拟器安装的是 x86_64 包，versionCode 4002，后续直接安装原 versionCode 2 的通用包会被视为降级。
+
+每个 APK 有同名 `.sha256` 文件，另汇总到 `dist/SHA256SUMS.txt`；架构、签名与安装检查见验收记录。
+
 ```powershell
 adb install -r dist/SaiSuite-1.0.0.apk
 adb shell am start -n io.github.wxia529.saisuite/.MainActivity
