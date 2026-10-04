@@ -4,6 +4,14 @@ import '../core/app_state.dart';
 import '../features/catalog.dart';
 import '../features/tool_page.dart';
 import '../features/pdf_page.dart';
+import '../features/palette_page.dart';
+import '../features/image_picker_page.dart';
+import '../features/pomodoro_page.dart';
+import '../features/drawing_page.dart';
+import '../features/sensor_page.dart';
+import '../features/ruler_page.dart';
+import '../features/media_page.dart';
+import '../features/analysis_page.dart';
 
 class SaiApp extends StatelessWidget {
   const SaiApp({super.key, required this.state});
@@ -77,9 +85,22 @@ class _HomeShellState extends State<HomeShell> {
     widget.state.visit(tool.id);
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => tool.pdf
-            ? PdfPage(tool: tool, state: widget.state)
-            : ToolPage(tool: tool, state: widget.state),
+        builder: (_) => switch (tool.id) {
+          'A01' => PalettePage(tool: tool, state: widget.state),
+          'A02' => ImagePickerPage(tool: tool, state: widget.state),
+          'A03' => PomodoroPage(tool: tool, state: widget.state),
+          'A04' => DrawingPage(tool: tool, state: widget.state),
+          'A05' ||
+          'A06' ||
+          'A07' => SensorPage(tool: tool, state: widget.state),
+          'A08' => RulerPage(tool: tool, state: widget.state),
+          'A09' || 'A10' => MediaPage(tool: tool, state: widget.state),
+          'N06' || 'N07' => AnalysisPage(tool: tool, state: widget.state),
+          _ =>
+            tool.pdf
+                ? PdfPage(tool: tool, state: widget.state)
+                : ToolPage(tool: tool, state: widget.state),
+        },
       ),
     );
   }
@@ -359,16 +380,16 @@ class _HomeShellState extends State<HomeShell> {
         onTap: () => showLicensePage(
           context: context,
           applicationName: 'SaiSuite · 赛赛工具箱',
-          applicationVersion: '1.0.0',
+          applicationVersion: '1.1.0',
         ),
       ),
-      const AboutListTile(
+      AboutListTile(
         applicationName: 'SaiSuite · 赛赛工具箱',
-        applicationVersion: '1.0.0',
+        applicationVersion: '1.1.0',
         applicationLegalese: '本地处理 · 无账号 · 无上传',
         aboutBoxChildren: [
           Text(
-            '46 个工具：12 项 PDF、日常计算、文本开发、科研、日期与 10 项电化学扩展。\nPDF 文件处理仅在 Android 版提供。',
+            '${tools.length} 个工具：PDF、日常计算、创作、设备、科研、日期与电化学。\nPDF、媒体和设备原生能力在 Android 版提供。',
           ),
         ],
       ),
@@ -385,9 +406,7 @@ class _HomeShellState extends State<HomeShell> {
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: widget.state,
     builder: (context, _) => Scaffold(
-      appBar: AppBar(
-        title: Text(['赛赛工具箱', '全部工具', '我的收藏', '设置'][tab]),
-      ),
+      appBar: AppBar(title: Text(['赛赛工具箱', '全部工具', '我的收藏', '设置'][tab])),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 900),

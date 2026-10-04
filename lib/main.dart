@@ -13,6 +13,9 @@ Future<void> main() async {
   tzdata.initializeTimeZones();
   await Files.cleanOldCache();
   LicenseRegistry.addLicense(() async* {
+    yield LicenseEntryWithLineBreaks([
+      'AndroidX Media3',
+    ], await rootBundle.loadString('assets/licenses/media3-LICENSE.txt'));
     yield LicenseEntryWithLineBreaks(
       ['PdfBox-Android / Apache PDFBox'],
       '${await rootBundle.loadString('assets/licenses/pdfbox-LICENSE.txt')}\n${await rootBundle.loadString('assets/licenses/pdfbox-NOTICE.txt')}',

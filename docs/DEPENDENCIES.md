@@ -38,3 +38,9 @@
 - 新版 Android CLI 的旧 `sdkmanager` 包装器不能可靠处理 Gradle 自动安装 NDK 的调用。本机已用官方 `android sdk install` 命令安装对应包。
 - 工程目前只生成 Android 平台。Windows 桌面版不属于当前交付；避免为了可选平台要求用户修改系统开发者模式。
 - release 使用单独本地签名，不使用默认 debug 密钥。私钥和密码文件不进入 Git。
+
+## v1.1 原生媒体与设备
+
+视频采用 [AndroidX Media3 Transformer 1.11.1](https://developer.android.com/media/media3/transformer)，Android 原生 Gradle 依赖，使用设备编解码器而不捆绑 FFmpeg。Apache 2.0 许可证保存在 assets/licenses/media3-LICENSE.txt 并注册到开源许可页。图片使用 BitmapFactory、ExifInterface 与 Canvas；设备工具使用 SensorManager、屏幕参数和手动标尺校准。番茄钟使用 AlarmManager 与本地通知，新增 POST_NOTIFICATIONS 运行时权限；不请求相机、定位或广泛媒体读取权限。
+
+Android 集成测试下载 AndroidX Media3 的 sample.mp4 测试素材，下载代码只在 integration_test/tools_test.dart 中，不进入正式 APK。该测试需联网，正式应用处理本地文件。

@@ -12,6 +12,7 @@ val releaseKeys = Properties().apply {
 }
 
 android {
+    buildFeatures { resValues = true }
     namespace = "io.github.wxia529.saisuite"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
@@ -23,6 +24,7 @@ android {
 
     defaultConfig {
         applicationId = "io.github.wxia529.saisuite"
+        resValue("string", "app_name", "赛赛工具箱")
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -46,6 +48,11 @@ android {
         }
     }
     buildTypes {
+        debug {
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+            resValue("string", "app_name", "赛赛工具箱（测试）")
+        }
         release {
             if (gradle.startParameter.taskNames.any { it.contains("release", ignoreCase = true) }) {
                 require(signingFile.exists()) { "Release requires android/key.properties and the preserved signing keystore." }
@@ -59,6 +66,8 @@ android {
 
 dependencies {
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
+    implementation("androidx.media3:media3-transformer:1.11.1")
+    implementation("androidx.media3:media3-effect:1.11.1")
 }
 
 kotlin {

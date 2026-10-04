@@ -77,13 +77,38 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('计算 / 处理'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.text('计算 / 处理'));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('8.5'),
+      -200,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('8.5'), findsOneWidget);
     expect(state.calculatorHistory.length, 1);
+    await tester.scrollUntilVisible(
+      find.byType(TextField),
+      -200,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.enterText(find.byType(TextField).first, '1/0');
+    await tester.scrollUntilVisible(
+      find.text('计算 / 处理'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.text('计算 / 处理'));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('不能除以零'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('不能除以零'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
