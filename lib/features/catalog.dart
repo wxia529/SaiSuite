@@ -57,14 +57,6 @@ class ToolSpec {
 }
 
 final tools = <ToolSpec>[
-  const ToolSpec('N06', '循环数据分析', '科研', '列映射、效率、保持率与平行样对比', Icons.show_chart),
-  const ToolSpec(
-    'N07',
-    '锂金属测试分析',
-    '科研',
-    'Li‖Cu效率与Li‖Li极化对比',
-    Icons.multiline_chart,
-  ),
   ToolSpec(
     'N01',
     '电解液配方',
@@ -90,25 +82,6 @@ final tools = <ToolSpec>[
       numField('实测最终体积 mL', '0'),
     ],
     hint: '两种模式分别使用对应字段。溶剂只支持质量比；盐摩尔质量由你核对实际试剂形态，纯度%表示有效盐质量比例。添加剂wt%以最终电解液总质量为分母。0密度/体积表示未提供；mol/L或体积配方需要实测最终溶液密度。示例只演示输入，不是推荐配方。不自动保存实验记录。',
-  ),
-  ToolSpec(
-    'N02',
-    '梯度配方',
-    '科研',
-    '盐浓度与添加剂含量的组合称量表',
-    Icons.table_chart_outlined,
-    fields: [
-      choice('目标量基准', ['溶剂质量 g', '最终质量 g', '最终体积 mL']),
-      numField('目标量', '10'),
-      choice('盐浓度单位', ['mol/kg溶剂', 'mol/L', 'wt%有效盐']),
-      numField('实测溶液密度 g/mL', '0'),
-      textField('溶剂：名称,质量比', 'EC,1\nDEC,1', multi: true),
-      textField('盐：名称,摩尔质量,目标浓度,纯度%', 'LiPF6,151.905,1,99.9', multi: true),
-      textField('添加剂：名称,最终电解液wt%', 'FEC,2', multi: true),
-      textField('第1种盐浓度梯度', '0.8,1,1.2'),
-      textField('第1种添加剂wt%梯度', '0,2,5'),
-    ],
-    hint: '最多36组；每组目标量相同，只改变第一种盐和第一种添加剂，其余输入保持一致。填写一个值可固定该变量。添加剂wt%以最终电解液质量为分母。示例只演示计算，不自动保存实验记录。',
   ),
   ToolSpec(
     'N03',
@@ -674,17 +647,6 @@ final tools = <ToolSpec>[
       numField('未补偿电阻 Ω', '5'),
       numField('已补偿 %', '0'),
     ],
-  ),
-  ToolSpec(
-    'EC21',
-    '电流积分与容量',
-    '科研',
-    '导入时间—电流 CSV',
-    Icons.area_chart_outlined,
-    fields: [
-      textField('时间 s,电流 mA', 'time,current\n0,1\n1800,1\n3600,1', multi: true),
-    ],
-    hint: '支持两列 CSV/TSV（time 为可选表头）；时间 s、电流 mA，严格递增；正负电流分开积分。可导入文件，导出记录保留输入、单位和公式条件。',
   ),
 ];
 const timezones = [

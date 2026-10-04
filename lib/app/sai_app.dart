@@ -11,7 +11,6 @@ import '../features/drawing_page.dart';
 import '../features/sensor_page.dart';
 import '../features/ruler_page.dart';
 import '../features/media_page.dart';
-import '../features/analysis_page.dart';
 import '../features/image_tools_hub.dart';
 
 class SaiApp extends StatelessWidget {
@@ -97,7 +96,6 @@ class _HomeShellState extends State<HomeShell> {
           'A08' => RulerPage(tool: tool, state: widget.state),
           'A09' => ImageToolsHub(tool: tool, state: widget.state),
           'A10' => MediaPage(tool: tool, state: widget.state),
-          'N06' || 'N07' => AnalysisPage(tool: tool, state: widget.state),
           _ =>
             tool.pdf
                 ? PdfPage(tool: tool, state: widget.state)
@@ -232,7 +230,7 @@ class _HomeShellState extends State<HomeShell> {
       section(
         '实验室常用',
         tools
-            .where((t) => ['S01', 'S04', 'EC04', 'EC05', 'EC21'].contains(t.id))
+            .where((t) => ['S01', 'S04', 'EC04', 'EC05'].contains(t.id))
             .toList(),
       ),
     ],
@@ -382,12 +380,12 @@ class _HomeShellState extends State<HomeShell> {
         onTap: () => showLicensePage(
           context: context,
           applicationName: 'SaiSuite · 赛赛工具箱',
-          applicationVersion: '1.3.0',
+          applicationVersion: '1.3.1',
         ),
       ),
       AboutListTile(
         applicationName: 'SaiSuite · 赛赛工具箱',
-        applicationVersion: '1.3.0',
+        applicationVersion: '1.3.1',
         aboutBoxChildren: [
           Text(
             '${tools.length} 个工具：PDF、日常计算、创作、设备、科研与日期。\nPDF、媒体和设备原生能力在 Android 版提供。',

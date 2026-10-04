@@ -163,42 +163,6 @@ String runLabTool(String id, Map<String, String> p) {
       return p['模式'] == '实际称量反算'
           ? reverseRecipe(p)
           : electrolyteRecipe(p).describe();
-    case 'N02':
-      List<double> gradient(String key) {
-        final values = p[key]!
-            .split(RegExp(r'[,，\s]+'))
-            .where((s) => s.isNotEmpty)
-            .map((s) => rowNumber(s))
-            .toList();
-        if (values.isEmpty || values.length > 12) {
-          throw const FormatException('每个梯度请输入 1—12 个值');
-        }
-        return values;
-      }
-      final a = gradient('第1种盐浓度梯度'), b = gradient('第1种添加剂wt%梯度');
-      if (a.length * b.length > 36) {
-        throw const FormatException('组合数超过 36，请缩小梯度');
-      }
-      final salts = tableRows(p['盐：名称,摩尔质量,目标浓度,纯度%']!, 4),
-          adds = tableRows(p['添加剂：名称,最终电解液wt%']!, 2);
-      final out = <String>[];
-      for (final salt in a) {
-        for (final add in b) {
-          final s = salts.map((r) => List<String>.of(r)).toList(),
-              d = adds.map((r) => List<String>.of(r)).toList();
-          s[0][2] = '$salt';
-          d[0][1] = '$add';
-          final recipe = electrolyteRecipe({
-            ...p,
-            '盐：名称,摩尔质量,目标浓度,纯度%': s.map((r) => r.join(',')).join('\n'),
-            '添加剂：名称,最终电解液wt%': d.map((r) => r.join(',')).join('\n'),
-          });
-          out.add(
-            '组 ${out.length + 1} · ${s[0][0]} $salt ${p['盐浓度单位']} / ${d[0][0]} $add wt%\n${recipe.describe()}',
-          );
-        }
-      }
-      return '共 ${out.length} 组；只改变第1种盐与第1种添加剂，其他输入保持一致。\n\n${out.join('\n\n────────\n\n')}';
     case 'N03':
       final count = integer(p, '电池数量', min: 1, max: 10000),
           volume = number(p, '单颗加液量 µL', nonnegative: true),

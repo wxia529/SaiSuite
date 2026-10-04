@@ -108,15 +108,6 @@ void main() {
     expect(colorConvert('HSL', '120,100,50'), startsWith('#00FF00'));
     expect(() => colorConvert('RGB', '256,0,0'), throwsFormatException);
   });
-  test('current integration splits zero crossings and rejects time reset', () {
-    final result = integrateCurrent([(0, 1), (3600, 1)]);
-    expect(result.positive, 1);
-    final crossed = integrateCurrent([(0, 1), (3600, -1)]);
-    expect(crossed.positive, .25);
-    expect(crossed.negative, .25);
-    expect(() => currentSeries('0,1\n0,2'), throwsFormatException);
-    expect(() => currentSeries('0,1\n1,NaN'), throwsFormatException);
-  });
   test('electrochemistry unit and capacity conventions', () {
     expect(
       runTool('EC01', tools.firstWhere((t) => t.id == 'EC01').defaults),
@@ -129,10 +120,6 @@ void main() {
     expect(
       runTool('EC16', tools.firstWhere((t) => t.id == 'EC16').defaults),
       contains('0.45 V'),
-    );
-    expect(
-      runTool('EC21', tools.firstWhere((t) => t.id == 'EC21').defaults),
-      contains('1 mAh'),
     );
   });
   test('slurry rejects impossible solvent amount and ratios', () {

@@ -22,5 +22,6 @@ Future<void> main() async {
     );
   });
   final state = AppState(await SharedPreferences.getInstance());
+  await state.migrateRetiredTools();
   runApp(SaiApp(state: state));
 }

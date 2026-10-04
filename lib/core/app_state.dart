@@ -3,10 +3,17 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// Removed in v1.3.1; only tool shortcuts are migrated, never exported files.
+const retiredToolIds = {'N02', 'N06', 'N07', 'EC21'};
+
 class AppState extends ChangeNotifier {
   AppState(this.prefs) {
-    favorites = prefs.getStringList('favorites') ?? [];
-    recent = prefs.getStringList('recent') ?? [];
+    favorites = (prefs.getStringList('favorites') ?? [])
+        .where((id) => !retiredToolIds.contains(id))
+        .toList();
+    recent = (prefs.getStringList('recent') ?? [])
+        .where((id) => !retiredToolIds.contains(id))
+        .toList();
     final mode = prefs.getInt('theme') ?? 0;
     theme = ThemeMode.values[mode.clamp(0, ThemeMode.values.length - 1)];
     calculatorHistory = prefs.getStringList('calculatorHistory') ?? [];
@@ -14,6 +21,18 @@ class AppState extends ChangeNotifier {
   final SharedPreferences prefs;
   late List<String> favorites, recent, calculatorHistory;
   late ThemeMode theme;
+  Future<void> migrateRetiredTools() async {
+    for (final key in ['favorites', 'recent']) {
+      final saved = prefs.getStringList(key);
+      if (saved != null && saved.any(retiredToolIds.contains)) {
+        await prefs.setStringList(
+          key,
+          saved.where((id) => !retiredToolIds.contains(id)).toList(),
+        );
+      }
+    }
+  }
+
   Future<void> star(String id) async {
     favorites.contains(id) ? favorites.remove(id) : favorites.add(id);
     notifyListeners();

@@ -33,6 +33,66 @@ void main() {
     expect(reload.recent, isEmpty);
     expect(reload.calculatorHistory, isEmpty);
   });
+  test(
+    'upgrade removes retired shortcuts and keeps remaining settings and order',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        'favorites': ['N06', 'C01', 'EC21', 'P01', 'N02', 'N07'],
+        'recent': ['N02', 'N01', 'N06', 'C01', 'EC21', 'N07'],
+        'theme': ThemeMode.dark.index,
+        'calculatorHistory': ['{"expression":"1+1","result":"2"}'],
+        'pom_remaining': 57,
+        'ruler_scale': 1.12,
+      });
+      final prefs = await SharedPreferences.getInstance(),
+          state = AppState(prefs);
+      expect(state.favorites, ['C01', 'P01']);
+      expect(state.recent, ['N01', 'C01']);
+      await state.migrateRetiredTools();
+      expect(prefs.getStringList('favorites'), ['C01', 'P01']);
+      expect(prefs.getStringList('recent'), ['N01', 'C01']);
+      await state.reorder(0, 1);
+      final reload = AppState(prefs);
+      expect(reload.favorites, ['P01', 'C01']);
+      expect(reload.theme, ThemeMode.dark);
+      expect(reload.calculatorHistory, hasLength(1));
+      expect(prefs.getInt('pom_remaining'), 57);
+      expect(prefs.getDouble('ruler_scale'), 1.12);
+      final keys = prefs.getKeys();
+      await reload.migrateRetiredTools();
+      expect(prefs.getKeys(), keys);
+      expect(prefs.getStringList('favorites'), ['P01', 'C01']);
+    },
+  );
+  testWidgets(
+    'retired tools disappear from search and upgraded app shows 60 tools',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({
+        'favorites': ['N02', 'N06', 'N07', 'EC21'],
+        'recent': ['N02', 'N06', 'N07', 'EC21'],
+      });
+      await tester.pumpWidget(
+        SaiApp(state: AppState(await SharedPreferences.getInstance())),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('浏览 60 个工具'), findsOneWidget);
+      await tester.tap(find.text('工具'));
+      await tester.pumpAndSettle();
+      for (final name in ['循环数据分析', '锂金属测试分析', '电流积分与容量', '梯度配方']) {
+        await tester.enterText(find.byType(TextField), name);
+        await tester.pumpAndSettle();
+        expect(find.text('没有匹配的工具，试试其他关键词'), findsOneWidget);
+        expect(
+          find.text(name),
+          findsOneWidget,
+        ); // Only the search input remains.
+      }
+      await tester.enterText(find.byType(TextField), '电解液配方');
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('收藏 电解液配方'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
   testWidgets('search alias finds PDF merge and favorite updates', (
     tester,
   ) async {

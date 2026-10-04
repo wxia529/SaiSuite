@@ -356,51 +356,6 @@ String hashText(String text, String algorithm) => switch (algorithm) {
   _ => sha256.convert(utf8.encode(text)).toString(),
 };
 
-List<(double, double)> currentSeries(String text) {
-  final rows = <(double, double)>[];
-  for (final line in const LineSplitter().convert(text)) {
-    if (line.trim().isEmpty) continue;
-    final cols = line.trim().split(RegExp(r'[,;\s]+'));
-    if (cols.length != 2) {
-      throw const FormatException('每行应包含时间(s)和电流(mA)，用逗号或空格分隔');
-    }
-    final t = double.tryParse(cols[0]), i = double.tryParse(cols[1]);
-    if (t == null || i == null || !t.isFinite || !i.isFinite) {
-      if (rows.isEmpty && cols[0].toLowerCase().contains('time')) continue;
-      throw const FormatException('数据包含无效数值');
-    }
-    if (rows.isNotEmpty && t <= rows.last.$1) {
-      throw const FormatException('时间必须严格递增；每圈时间重置请分段导入');
-    }
-    rows.add((t, i));
-  }
-  if (rows.length < 2) throw const FormatException('积分至少需要两个采样点');
-  return rows;
-}
-
-({double positive, double negative}) integrateCurrent(
-  List<(double, double)> points,
-) {
-  var pos = 0.0, neg = 0.0;
-  for (var i = 1; i < points.length; i++) {
-    final (t0, a) = points[i - 1];
-    final (t1, b) = points[i];
-    final dt = t1 - t0;
-    if (dt <= 0) throw const FormatException('时间必须递增');
-    if (a * b < 0) {
-      final f = a.abs() / (a.abs() + b.abs());
-      final q0 = a * dt * f / 2, q1 = b * dt * (1 - f) / 2;
-      pos += math.max(0, q0) + math.max(0, q1);
-      neg += math.min(0, q0) + math.min(0, q1);
-    } else {
-      final q = (a + b) * dt / 2;
-      pos += math.max(0, q);
-      neg += math.min(0, q);
-    }
-  }
-  return (positive: pos / 3600, negative: -neg / 3600); // mA·s → mAh
-}
-
 String runTool(String id, Map<String, String> p) {
   double n(String k, {bool positive = false, bool nonnegative = false}) =>
       number(p, k, positive: positive, nonnegative: nonnegative);
@@ -783,9 +738,6 @@ String runTool(String id, Map<String, String> p) {
           n('未补偿电阻 Ω', nonnegative: true) *
           (1 - proportion / 100);
       return '剩余电压损失：${f(loss)} V\n校正电位：${f(n('测得电位 V') - loss)} V\n\n氧化电流为正；仅扣除尚未补偿部分。';
-    case 'EC21':
-      final q = integrateCurrent(currentSeries(s('时间 s,电流 mA')));
-      return '正电流积分：${f(q.positive)} mAh\n负电流积分幅值：${f(q.negative)} mAh\n净电量：${f((q.positive - q.negative) * 3.6)} C\n\n线性插值与梯形积分；正负段分开，交零点分段。';
     default:
       throw FormatException('未知工具：$id');
   }
