@@ -209,6 +209,25 @@ def is_published(repo: str, tag: str) -> bool:
     return bool(existing and not existing["draft"])
 
 
+def find_release(repo: str, tag: str):
+    # The by-tag endpoint only returns published releases. Authenticated release
+    # listings also include drafts; preserve their numeric ID for later reads.
+    published = github_get(repo, "releases/tags/" + quote(tag, safe=""))
+    if published:
+        return published
+    page = 1
+    while True:
+        releases = github_get(repo, f"releases?per_page=100&page={page}")
+        if releases is None:
+            raise ValueError("Could not list repository releases")
+        for item in releases:
+            if item["tag_name"] == tag:
+                return item
+        if len(releases) < 100:
+            return None
+        page += 1
+
+
 def verify_tag_source(repo: str, tag: str, source: str):
     if not re.fullmatch(r"[0-9a-f]{40}", source):
         raise ValueError("A valid source commit SHA is required for publication")
@@ -233,7 +252,7 @@ def publish():
     if repo != "wxia529/SaiSuite":
         raise ValueError("Unexpected release repository")
     assets = verify_checksums(ROOT / "dist", name)
-    existing = github_get(repo, "releases/tags/" + quote(tag, safe=""))
+    existing = find_release(repo, tag)
     if existing and not existing["draft"]:
         raise ValueError("Release is already public; refusing to replace published packages")
     latest = github_get(repo, "releases/latest")
@@ -244,11 +263,14 @@ def publish():
     if not existing:
         subprocess.run(["gh", "release", "create", tag, "--verify-tag", "--draft", "--title",
                         f"SaiSuite v{name}", "--notes-file", str(ROOT / f"docs/releases/v{name}.md")], check=True)
+        existing = find_release(repo, tag)
+    if not existing or not existing["draft"]:
+        raise ValueError("Could not locate the draft release before uploading assets")
     subprocess.run(["gh", "release", "upload", tag, *map(str, assets), "--clobber"], check=True)
-    draft = github_get(repo, "releases/tags/" + quote(tag, safe=""))
+    draft = github_get(repo, "releases/" + str(existing["id"]))
     expected = {asset.name: asset.stat().st_size for asset in assets}
     uploaded = {asset["name"]: asset["size"] for asset in draft["assets"]} if draft else {}
-    if not draft or not draft["draft"] or uploaded != expected:
+    if not draft or not draft["draft"] or uploaded != expected or any(asset["state"] != "uploaded" for asset in draft["assets"]):
         raise ValueError("Draft release assets are incomplete or unexpected; leaving draft unpublished")
     subprocess.run(["gh", "release", "edit", tag, "--draft=false", "--prerelease=false", "--latest"], check=True)
     print(f"Published {tag} with all nine verified assets")

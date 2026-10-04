@@ -112,16 +112,17 @@ class ReleaseChecks(unittest.TestCase):
         dist = self.root / "dist"
         self.make_assets(dist)
         assets = release.verify_checksums(dist, "1.4.0")
-        draft = {"draft": True, "assets": [{"name": p.name, "size": p.stat().st_size} for p in assets]}
+        draft = {"id": 42, "draft": True, "assets": [{"name": p.name, "size": p.stat().st_size, "state": "uploaded"} for p in assets]}
         for complete in [False, True]:
             response = draft if complete else {"draft": True, "assets": []}
             ref = {"object": {"type": "commit", "sha": "a" * 40}}
-            with patch.object(release, "ROOT", self.root), patch.object(release, "version", return_value=("1.4.0", 9)), patch.dict(os.environ, {"GH_REPO": "wxia529/SaiSuite", "RELEASE_TAG": "v1.4.0+9", "GITHUB_SHA": "a" * 40}), patch.object(release, "github_get", side_effect=[None, None, ref, response]), patch.object(release.subprocess, "run") as run:
+            with patch.object(release, "ROOT", self.root), patch.object(release, "version", return_value=("1.4.0", 9)), patch.dict(os.environ, {"GH_REPO": "wxia529/SaiSuite", "RELEASE_TAG": "v1.4.0+9", "GITHUB_SHA": "a" * 40}), patch.object(release, "find_release", side_effect=[None, draft]), patch.object(release, "github_get", side_effect=[None, ref, response]) as get, patch.object(release.subprocess, "run") as run:
                 if complete:
                     release.publish()
                 else:
                     with self.assertRaisesRegex(ValueError, "incomplete"):
                         release.publish()
+                self.assertEqual(get.call_args.args[1], "releases/42")
             commands = [call.args[0] for call in run.call_args_list]
             self.assertIn("--draft", commands[0])
             self.assertIn("--verify-tag", commands[0])
@@ -130,10 +131,29 @@ class ReleaseChecks(unittest.TestCase):
 
     def test_public_release_cannot_be_replaced(self):
         self.make_assets(self.root / "dist")
-        with patch.object(release, "ROOT", self.root), patch.object(release, "version", return_value=("1.4.0", 9)), patch.dict(os.environ, {"GH_REPO": "wxia529/SaiSuite", "RELEASE_TAG": "v1.4.0+9"}), patch.object(release, "github_get", return_value={"draft": False}), patch.object(release.subprocess, "run") as run:
+        with patch.object(release, "ROOT", self.root), patch.object(release, "version", return_value=("1.4.0", 9)), patch.dict(os.environ, {"GH_REPO": "wxia529/SaiSuite", "RELEASE_TAG": "v1.4.0+9"}), patch.object(release, "find_release", return_value={"draft": False}), patch.object(release.subprocess, "run") as run:
             with self.assertRaisesRegex(ValueError, "already public"):
                 release.publish()
         run.assert_not_called()
+
+    def test_draft_is_found_when_published_tag_endpoint_returns_404(self):
+        draft = {"id": 42, "tag_name": "v1.4.0+9", "draft": True}
+        page = [{"tag_name": "v1.3.1+8", "draft": False}] * 100
+        with patch.object(release, "github_get", side_effect=[None, page, [draft]]) as get:
+            self.assertEqual(release.find_release("wxia529/SaiSuite", "v1.4.0+9"), draft)
+        self.assertEqual(get.call_args.args[1], "releases?per_page=100&page=2")
+        with patch.object(release, "github_get", side_effect=[None, []]):
+            self.assertIsNone(release.find_release("wxia529/SaiSuite", "v1.4.0+9"))
+
+    def test_failed_draft_upload_can_resume_without_creating_another_release(self):
+        dist = self.root / "dist"
+        self.make_assets(dist)
+        assets = release.verify_checksums(dist, "1.4.0")
+        draft = {"id": 42, "draft": True, "assets": [{"name": p.name, "size": p.stat().st_size, "state": "uploaded"} for p in assets]}
+        ref = {"object": {"type": "commit", "sha": "a" * 40}}
+        with patch.object(release, "ROOT", self.root), patch.object(release, "version", return_value=("1.4.0", 9)), patch.dict(os.environ, {"GH_REPO": "wxia529/SaiSuite", "RELEASE_TAG": "v1.4.0+9", "GITHUB_SHA": "a" * 40}), patch.object(release, "find_release", return_value=draft), patch.object(release, "github_get", side_effect=[None, ref, draft]), patch.object(release.subprocess, "run") as run:
+            release.publish()
+        self.assertEqual([call.args[0][2] for call in run.call_args_list], ["upload", "edit"])
 
     def test_duplicate_publication_is_skipped_but_drafts_can_resume(self):
         for response, expected in [(None, False), ({"draft": True}, False), ({"draft": False}, True)]:
