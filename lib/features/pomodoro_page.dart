@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -180,53 +181,205 @@ class _PomodoroPageState extends State<PomodoroPage>
       decoration: InputDecoration(labelText: label),
     ),
   );
+  Future<void> selectPhase(String next) async {
+    if (running || updating) return;
+    setState(() => updating = true);
+    try {
+      final minutes = count(
+        next == '专注'
+            ? focus
+            : next == '短休息'
+            ? short
+            : long,
+      );
+      setState(() {
+        phase = next;
+        remaining = minutes * 60;
+      });
+      await persist();
+    } catch (e) {
+      if (mounted) message(context, '$e');
+    } finally {
+      if (mounted) setState(() => updating = false);
+    }
+  }
+
   @override
-  Widget build(BuildContext context) => Workbench(
-    tool: widget.tool,
-    state: widget.state,
-    children: [
-      if (!ready) const LinearProgressIndicator(),
-      Text(
-        '$phase · 第 $round 轮',
-        textAlign: TextAlign.center,
-        style: Theme.of(context).textTheme.titleLarge,
-      ),
-      Padding(
-        padding: const EdgeInsets.symmetric(vertical: 24),
-        child: Text(
-          '${(remaining ~/ 60).toString().padLeft(2, '0')}:${(remaining % 60).toString().padLeft(2, '0')}',
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.displayLarge,
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final duration =
+        int.tryParse(
+          (phase == '专注'
+                  ? focus
+                  : phase == '短休息'
+                  ? short
+                  : long)
+              .text,
+        ) ??
+        25;
+    final progress = (remaining / (math.max(1, duration) * 60)).clamp(0.0, 1.0);
+    final accent = phase == '专注' ? const Color(0xffd36b58) : scheme.primary;
+    return Workbench(
+      tool: widget.tool,
+      state: widget.state,
+      children: [
+        if (!ready) const LinearProgressIndicator(),
+        Text(
+          'POMODORO',
+          style: Theme.of(context).textTheme.labelMedium
+              ?.copyWith(letterSpacing: 3),
         ),
-      ),
-      Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          FilledButton(
-            onPressed: !ready || updating
-                ? null
-                : () => action(running ? '暂停' : '开始'),
-            child: Text(running ? '暂停' : '开始 / 继续'),
+        const SizedBox(height: 8),
+        Text('留一点时间，专注当下。', style: Theme.of(context).textTheme.headlineSmall),
+        const SizedBox(height: 22),
+        SegmentedButton<String>(
+          segments: const [
+            ButtonSegment(value: '专注', label: Text('专注')),
+            ButtonSegment(value: '短休息', label: Text('短休息')),
+            ButtonSegment(value: '长休息', label: Text('长休息')),
+          ],
+          selected: {phase},
+          onSelectionChanged: running || updating || !ready
+              ? null
+              : (v) => selectPhase(v.first),
+        ),
+        const SizedBox(height: 28),
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 280),
+            child: AspectRatio(
+              aspectRatio: 1,
+              child: CustomPaint(
+                painter: TimerRingPainter(
+                  progress,
+                  accent,
+                  scheme.surfaceContainerHighest,
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      phase == '专注'
+                          ? Icons.spa_outlined
+                          : Icons.coffee_outlined,
+                      color: accent,
+                      size: 30,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      '${(remaining ~/ 60).toString().padLeft(2, '0')}:${(remaining % 60).toString().padLeft(2, '0')}',
+                      style: Theme.of(context).textTheme.displayMedium
+                          ?.copyWith(
+                            fontWeight: FontWeight.w500,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '$phase · 第 $round 轮',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
-          OutlinedButton(
-            onPressed: !ready || updating ? null : () => action('下一阶段'),
-            child: const Text('跳过 / 下一阶段'),
+        ),
+        const SizedBox(height: 24),
+        FilledButton.icon(
+          style: FilledButton.styleFrom(backgroundColor: accent),
+          onPressed: !ready || updating
+              ? null
+              : () => action(running ? '暂停' : '开始'),
+          icon: Icon(running ? Icons.pause_rounded : Icons.play_arrow_rounded),
+          label: Text(running ? '暂停' : '开始 / 继续'),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: TextButton(
+                onPressed: !ready || updating ? null : () => action('下一阶段'),
+                child: const Text('跳过 / 下一阶段'),
+              ),
+            ),
+            Expanded(
+              child: TextButton(
+                onPressed: !ready || updating ? null : () => action('重置'),
+                child: const Text('重置'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        Card(
+          margin: EdgeInsets.zero,
+          child: ExpansionTile(
+            title: const Text('时长与轮次'),
+            subtitle: Text(
+              '${focus.text} / ${short.text} / ${long.text} 分钟 · ${rounds.text} 轮',
+            ),
+            childrenPadding: const EdgeInsets.all(18),
+            children: [
+              Row(
+                children: [
+                  Expanded(child: config('专注 / 分钟', focus)),
+                  const SizedBox(width: 12),
+                  Expanded(child: config('短休息 / 分钟', short)),
+                ],
+              ),
+              Row(
+                children: [
+                  Expanded(child: config('长休息 / 分钟', long)),
+                  const SizedBox(width: 12),
+                  Expanded(child: config('专注轮数', rounds)),
+                ],
+              ),
+              const Text('修改后点按重置应用设置。'),
+            ],
           ),
-          TextButton(
-            onPressed: !ready || updating ? null : () => action('重置'),
-            child: const Text('重置'),
-          ),
-        ],
-      ),
-      const SizedBox(height: 24),
-      config('专注时长（分钟，1—180）', focus),
-      config('短休息（分钟，1—180）', short),
-      config('长休息（分钟，1—180）', long),
-      config('长休息前的专注轮数（1—20）', rounds),
-      Text(notice),
-      const SizedBox(height: 8),
-      const Text('每段结束后由你确认开始下一段。只保存当前计时状态和设置，不建立专注历史。'),
-    ],
-  );
+        ),
+        const SizedBox(height: 18),
+        Text(notice, style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 8),
+        const Text('每段结束后，手动开始下一段。', textAlign: TextAlign.center),
+      ],
+    );
+  }
+}
+
+class TimerRingPainter extends CustomPainter {
+  TimerRingPainter(this.progress, this.color, this.track);
+  final double progress;
+  final Color color, track;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = (Offset.zero & size).deflate(12);
+    canvas.drawOval(rect, Paint()..color = color.withValues(alpha: .06));
+    canvas.drawArc(
+      rect,
+      0,
+      2 * math.pi,
+      false,
+      Paint()
+        ..color = track
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 8,
+    );
+    canvas.drawArc(
+      rect,
+      -math.pi / 2,
+      2 * math.pi * progress,
+      false,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 8
+        ..strokeCap = StrokeCap.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(TimerRingPainter old) =>
+      old.progress != progress || old.color != color || old.track != track;
 }

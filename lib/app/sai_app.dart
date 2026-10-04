@@ -382,12 +382,12 @@ class _HomeShellState extends State<HomeShell> {
         onTap: () => showLicensePage(
           context: context,
           applicationName: 'SaiSuite · 赛赛工具箱',
-          applicationVersion: '1.2.1',
+          applicationVersion: '1.3.0',
         ),
       ),
       AboutListTile(
         applicationName: 'SaiSuite · 赛赛工具箱',
-        applicationVersion: '1.2.1',
+        applicationVersion: '1.3.0',
         aboutBoxChildren: [
           Text(
             '${tools.length} 个工具：PDF、日常计算、创作、设备、科研与日期。\nPDF、媒体和设备原生能力在 Android 版提供。',

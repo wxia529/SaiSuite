@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../core/app_state.dart';
+import '../core/compass.dart';
 import 'catalog.dart';
 import 'workbench.dart';
 
@@ -16,12 +17,17 @@ class SensorPage extends StatefulWidget {
   State<SensorPage> createState() => _SensorPageState();
 }
 
-class _SensorPageState extends State<SensorPage> with WidgetsBindingObserver {
+class _SensorPageState extends State<SensorPage>
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   StreamSubscription<dynamic>? subscription;
   List<dynamic> inventory = [];
   Map data = {};
   double zeroX = 0, zeroY = 0;
   String? error;
+  late final AnimationController headingAnimation;
+  Tween<double> heading = Tween(begin: 0, end: 0);
+  bool receivedHeading = false;
+  bool get isCompass => widget.tool.id == 'A05';
   static const names = {
     1: '加速度 · m/s²',
     2: '磁场 · µT',
@@ -34,6 +40,10 @@ class _SensorPageState extends State<SensorPage> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    headingAnimation = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 100),
+    );
     WidgetsBinding.instance.addObserver(this);
     load();
   }
@@ -54,10 +64,48 @@ class _SensorPageState extends State<SensorPage> with WidgetsBindingObserver {
   void listen() {
     if (subscription != null) return;
     subscription = const EventChannel('saisuite/sensors')
-        .receiveBroadcastStream()
+        .receiveBroadcastStream({
+          'mode': isCompass
+              ? 'compass'
+              : widget.tool.id == 'A06'
+              ? 'level'
+              : 'all',
+        })
         .listen(
           (event) {
-            if (mounted) setState(() => data = event as Map);
+            if (!mounted) return;
+            final next = event as Map;
+            if (!isCompass) {
+              setState(() => data = next);
+              return;
+            }
+            final raw = (next['azimuth'] as num?)?.toDouble();
+            final accuracyChanged =
+                (data['accuracy'] as Map?)?['2'] !=
+                (next['accuracy'] as Map?)?['2'];
+            data = next;
+            if (raw != null && raw.isFinite) {
+              final current = heading.evaluate(headingAnimation);
+              final target = receivedHeading
+                  ? unwrapHeading(current, raw)
+                  : raw;
+              // Identical sensor samples must not keep the GPU animation alive.
+              if (receivedHeading &&
+                  !accuracyChanged &&
+                  (target - heading.end!).abs() < .05) {
+                return;
+              }
+              heading = Tween(
+                begin: receivedHeading ? current : target,
+                end: target,
+              );
+              if (!receivedHeading || accuracyChanged) {
+                setState(() => receivedHeading = true);
+              }
+              headingAnimation.forward(from: 0);
+            } else if (accuracyChanged) {
+              setState(() {});
+            }
           },
           onError: (Object e) {
             if (mounted) setState(() => error = '$e');
@@ -78,6 +126,7 @@ class _SensorPageState extends State<SensorPage> with WidgetsBindingObserver {
   @override
   void dispose() {
     subscription?.cancel();
+    headingAnimation.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -93,7 +142,7 @@ class _SensorPageState extends State<SensorPage> with WidgetsBindingObserver {
         : level
         ? has(9) || has(1)
         : inventory.any((s) => s['available'] == true);
-    final azimuth = value('azimuth'), x = value('tiltX'), y = value('tiltY');
+    final x = value('tiltX'), y = value('tiltY');
     return Workbench(
       tool: widget.tool,
       state: widget.state,
@@ -103,33 +152,81 @@ class _SensorPageState extends State<SensorPage> with WidgetsBindingObserver {
         if (inventory.isNotEmpty && !supported)
           const Text('设备缺少此工具所需的传感器，无法测量。'),
         if (compass && supported) ...[
-          const Text('磁北指南针；远离磁铁、电池测试夹具和金属干扰。读数不作为精密测量依据。'),
-          SizedBox(
-            height: 240,
-            child: Center(
-              child: Transform.rotate(
-                angle: -(azimuth ?? 0) * math.pi / 180,
-                child: const Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [Text('N · 磁北'), Icon(Icons.navigation, size: 140)],
+          Text(
+            'MAGNETIC COMPASS',
+            style: Theme.of(context).textTheme.labelMedium
+                ?.copyWith(letterSpacing: 2),
+          ),
+          const SizedBox(height: 10),
+          Text('找到你的方向', style: Theme.of(context).textTheme.headlineSmall),
+          const SizedBox(height: 24),
+          AnimatedBuilder(
+            animation: headingAnimation,
+            child: RepaintBoundary(
+              child: CustomPaint(
+                painter: CompassRosePainter(
+                  Theme.of(context).colorScheme.primary,
+                  Theme.of(context).colorScheme.onSurface,
+                  Theme.of(context).colorScheme.surfaceContainerLow,
                 ),
               ),
             ),
+            builder: (context, face) {
+              final angle = heading.evaluate(headingAnimation),
+                  degrees = angle % 360;
+              return Column(
+                children: [
+                  Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 360),
+                      child: AspectRatio(
+                        aspectRatio: 1,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            Transform.rotate(
+                              angle: -angle * math.pi / 180,
+                              child: face,
+                            ),
+                            const IgnorePointer(
+                              child: CustomPaint(
+                                painter: CompassPointerPainter(),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  Text(
+                    receivedHeading
+                        ? '${compassDirection(degrees)} · ${(degrees.round() % 360).toString().padLeft(3, '0')}°'
+                        : '等待方向读数…',
+                    style: Theme.of(context).textTheme.headlineMedium,
+                  ),
+                ],
+              );
+            },
           ),
-          Text(
-            azimuth == null ? '等待方向读数…' : '方位角 ${azimuth.toStringAsFixed(1)}°',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.headlineMedium,
+          const SizedBox(height: 24),
+          Card(
+            margin: EdgeInsets.zero,
+            child: ListTile(
+              leading: const Icon(Icons.verified_outlined),
+              title: Text(
+                '磁场精度：${switch ((data['accuracy'] as Map?)?['2']) {
+                  3 => '高',
+                  2 => '中',
+                  1 => '低，请校准',
+                  _ => '未知或不可靠，请校准',
+                }}',
+              ),
+              subtitle: const Text('可缓慢以“8”字形移动手机后重新观察。'),
+            ),
           ),
-          Text(
-            '磁场精度：${switch ((data['accuracy'] as Map?)?['2']) {
-              3 => '高',
-              2 => '中',
-              1 => '低，请校准',
-              _ => '未知或不可靠，请校准',
-            }}',
-          ),
-          const Text('可缓慢以“8”字形移动手机后重新观察读数。'),
+          const SizedBox(height: 18),
+          const Text('以磁北为参考。远离磁铁、电池夹具和金属干扰，读数不作为精密测量依据。'),
         ],
         if (level && supported) ...[
           const Text('将手机放在待测面上。归零以当前姿态为参考，测量精度受手机外壳与传感器影响。'),
@@ -221,4 +318,95 @@ class LevelPainter extends CustomPainter {
   @override
   bool shouldRepaint(LevelPainter old) =>
       old.x != x || old.y != y || old.color != color;
+}
+
+class CompassRosePainter extends CustomPainter {
+  const CompassRosePainter(this.accent, this.foreground, this.surface);
+  final Color accent, foreground, surface;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2),
+        radius = math.min(size.width, size.height) * .44;
+    canvas.drawCircle(center, radius, Paint()..color = surface);
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..color = accent.withValues(alpha: .12)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
+    canvas.drawCircle(
+      center,
+      radius * .63,
+      Paint()..color = accent.withValues(alpha: .07),
+    );
+    Offset at(double angle, double r) =>
+        center + Offset(math.sin(angle) * r, -math.cos(angle) * r);
+    for (int i = 0; i < 72; i++) {
+      final major = i % 6 == 0, angle = i * math.pi / 36;
+      canvas.drawLine(
+        at(angle, radius * .96),
+        at(angle, radius * (major ? .83 : .9)),
+        Paint()
+          ..color = foreground.withValues(alpha: major ? .6 : .2)
+          ..strokeWidth = major ? 2 : 1,
+      );
+    }
+    const letters = ['北 N', '东 E', '南 S', '西 W'];
+    for (int i = 0; i < 4; i++) {
+      final text = TextPainter(
+        text: TextSpan(
+          text: letters[i],
+          style: TextStyle(
+            color: i == 0 ? const Color(0xffd66a56) : foreground,
+            fontSize: radius * .11,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final spot = at(i * math.pi / 2, radius * .72);
+      text.paint(canvas, spot - Offset(text.width / 2, text.height / 2));
+    }
+    final north = Path()
+      ..moveTo(center.dx, center.dy - radius * .52)
+      ..lineTo(center.dx - radius * .08, center.dy)
+      ..lineTo(center.dx + radius * .08, center.dy)
+      ..close();
+    canvas.drawPath(north, Paint()..color = const Color(0xffd66a56));
+    final south = Path()
+      ..moveTo(center.dx, center.dy + radius * .52)
+      ..lineTo(center.dx - radius * .08, center.dy)
+      ..lineTo(center.dx + radius * .08, center.dy)
+      ..close();
+    canvas.drawPath(south, Paint()..color = accent.withValues(alpha: .45));
+    canvas.drawCircle(center, 7, Paint()..color = surface);
+    canvas.drawCircle(center, 4, Paint()..color = foreground);
+  }
+
+  @override
+  bool shouldRepaint(CompassRosePainter old) =>
+      old.accent != accent ||
+      old.foreground != foreground ||
+      old.surface != surface;
+}
+
+class CompassPointerPainter extends CustomPainter {
+  const CompassPointerPainter();
+  @override
+  void paint(Canvas canvas, Size size) {
+    final x = size.width / 2, y = math.min(size.width, size.height) * .015;
+    canvas.drawPath(
+      Path()
+        ..moveTo(x - 6, y)
+        ..lineTo(x + 6, y)
+        ..lineTo(x, y + 12)
+        ..close(),
+      Paint()..color = const Color(0xffd66a56),
+    );
+  }
+
+  @override
+  bool shouldRepaint(CompassPointerPainter old) => false;
 }

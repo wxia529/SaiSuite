@@ -11,6 +11,7 @@ class SensorService(private val activity: Activity) : EventChannel.StreamHandler
     private val values = mutableMapOf<Int, FloatArray>()
     private val accuracies = mutableMapOf<Int, Int>()
     private var last = 0L
+    private var interval = 100L
     private val types = listOf(Sensor.TYPE_ACCELEROMETER, Sensor.TYPE_MAGNETIC_FIELD, Sensor.TYPE_GYROSCOPE, Sensor.TYPE_LIGHT, Sensor.TYPE_PRESSURE, Sensor.TYPE_GRAVITY, Sensor.TYPE_ROTATION_VECTOR)
     fun inventory(): List<Map<String, Any>> = types.map { type ->
         val sensor = manager.getDefaultSensor(type)
@@ -18,14 +19,23 @@ class SensorService(private val activity: Activity) : EventChannel.StreamHandler
     }
     override fun onListen(arguments: Any?, events: EventChannel.EventSink) {
         onCancel(null); sink = events; values.clear(); accuracies.clear()
-        for (type in types) manager.getDefaultSensor(type)?.let { manager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) }
+        last = 0L
+        val mode = (arguments as? Map<*, *>)?.get("mode") as? String
+        interval = when (mode) { "compass" -> 33L; "level" -> 50L; else -> 100L }
+        val selected = when (mode) {
+            "compass" -> listOf(Sensor.TYPE_MAGNETIC_FIELD, if (manager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR) != null) Sensor.TYPE_ROTATION_VECTOR else Sensor.TYPE_ACCELEROMETER)
+            "level" -> listOf(if (manager.getDefaultSensor(Sensor.TYPE_GRAVITY) != null) Sensor.TYPE_GRAVITY else Sensor.TYPE_ACCELEROMETER)
+            else -> types
+        }
+        val delay = if (mode == "compass" || mode == "level") SensorManager.SENSOR_DELAY_GAME else SensorManager.SENSOR_DELAY_UI
+        for (type in selected) manager.getDefaultSensor(type)?.let { manager.registerListener(this, it, delay) }
     }
     override fun onCancel(arguments: Any?) { manager.unregisterListener(this); sink = null }
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) { sensor?.let { accuracies[it.type] = accuracy } }
     override fun onSensorChanged(event: SensorEvent) {
         values[event.sensor.type] = event.values.clone(); accuracies[event.sensor.type] = event.accuracy
         val now = android.os.SystemClock.elapsedRealtime()
-        if (now - last < 100) return
+        if (now - last < interval) return
         last = now
         val data = mutableMapOf<String, Any>("values" to values.mapKeys { it.key.toString() }.mapValues { it.value.toList() }, "accuracy" to accuracies.mapKeys { it.key.toString() })
         val rotation = FloatArray(9)

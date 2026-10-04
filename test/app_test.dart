@@ -78,11 +78,11 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
-      find.text('计算 / 处理'),
+      find.text('=').hitTestable(),
       200,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.tap(find.text('计算 / 处理'));
+    await tester.tap(find.text('='));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
       find.text('8.5'),
@@ -98,11 +98,11 @@ void main() {
     );
     await tester.enterText(find.byType(TextField).first, '1/0');
     await tester.scrollUntilVisible(
-      find.text('计算 / 处理'),
+      find.text('=').hitTestable(),
       200,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.tap(find.text('计算 / 处理'));
+    await tester.tap(find.text('='));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
       find.text('不能除以零'),
@@ -151,13 +151,13 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('计算 / 处理'));
-    await tester.tap(find.text('计算 / 处理'));
+    await tester.ensureVisible(find.text('生成二维码'));
+    await tester.tap(find.text('生成二维码'));
     await tester.pumpAndSettle();
     expect(find.text('结果'), findsOneWidget);
     await tester.enterText(find.byType(TextField).first, 'a' * 3500);
-    await tester.ensureVisible(find.text('计算 / 处理'));
-    await tester.tap(find.text('计算 / 处理'));
+    await tester.ensureVisible(find.text('生成二维码'));
+    await tester.tap(find.text('生成二维码'));
     await tester.pumpAndSettle();
     expect(find.textContaining('内容超过二维码容量'), findsOneWidget);
     expect(find.text('结果'), findsNothing);

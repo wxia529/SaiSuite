@@ -142,6 +142,30 @@ void main() {
     expect(cancellation, 'CANCELLED');
     final inventory = await device.invokeMethod<List>('sensors');
     expect(inventory, isNotEmpty);
+    // Compass and level activate only the sensors needed by their workbench.
+    const sensorStream = EventChannel('saisuite/sensors');
+    for (final mode in ['compass', 'level', 'all']) {
+      final sample =
+          await sensorStream
+                  .receiveBroadcastStream({'mode': mode})
+                  .firstWhere(
+                    (e) => mode == 'compass'
+                        ? (e as Map)['azimuth'] != null
+                        : mode == 'level'
+                        ? (e as Map)['tiltX'] != null
+                        : ((e as Map)['values'] as Map).length >= 3,
+                  )
+                  .timeout(const Duration(seconds: 10))
+              as Map;
+      final active = (sample['values'] as Map).keys.toSet();
+      if (mode == 'compass') {
+        expect(active.difference({'2', '11', '1'}), isEmpty);
+        expect((sample['azimuth'] as num).isFinite, isTrue);
+      } else if (mode == 'level') {
+        expect(active.difference({'9', '1'}), isEmpty);
+        expect((sample['tiltX'] as num).isFinite, isTrue);
+      }
+    }
     final metrics = await device.invokeMapMethod('displayMetrics');
     expect((metrics!['xdpi'] as num) > 0, true);
     await device.invokeMethod('timerCancel');

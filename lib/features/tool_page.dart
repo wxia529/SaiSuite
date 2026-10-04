@@ -17,6 +17,7 @@ import 'workbench.dart' show message;
 import '../core/files.dart';
 import '../core/background.dart';
 import 'catalog.dart';
+import 'design_widgets.dart';
 
 class ToolPage extends StatefulWidget {
   const ToolPage({super.key, required this.tool, required this.state});
@@ -33,6 +34,7 @@ class _ToolPageState extends State<ToolPage> {
   String? result, error;
   bool busy = false;
   String? hashFile;
+  String unitCategory = '温度';
   bool exported = false, allowExit = false;
   Map<String, String>? resultInputs;
   @override
@@ -174,7 +176,7 @@ class _ToolPageState extends State<ToolPage> {
     if (widget.tool.id == 'C05' || widget.tool.id == 'C06') return result ?? '';
     return jsonEncode({
       'app': 'SaiSuite',
-      'version': '1.2.1',
+      'version': '1.3.0',
       'tool': widget.tool.id,
       'name': widget.tool.name,
       'createdAt': DateTime.now().toUtc().toIso8601String(),
@@ -195,6 +197,7 @@ class _ToolPageState extends State<ToolPage> {
                 : '');
       controllers[f.name]!.text = values[f.name]!;
     }
+    if (widget.tool.id == 'C02') unitCategory = units[values['原单位']]!.category;
     setState(() {
       result = null;
       error = null;
@@ -224,7 +227,15 @@ class _ToolPageState extends State<ToolPage> {
         contentPadding: EdgeInsets.zero,
         title: Text(f.name),
         value: values[f.name] == 'true',
-        onChanged: busy ? null : (v) => setState(() => values[f.name] = '$v'),
+        onChanged: busy
+            ? null
+            : (v) => setState(() {
+                values[f.name] = '$v';
+                if (['C02', 'C04', 'C06'].contains(widget.tool.id)) {
+                  result = null;
+                  error = null;
+                }
+              }),
       );
     }
     if (f.kind == FieldKind.choice) {
@@ -238,7 +249,15 @@ class _ToolPageState extends State<ToolPage> {
           items: f.options
               .map((e) => DropdownMenuItem(value: e, child: Text(e)))
               .toList(),
-          onChanged: busy ? null : (v) => setState(() => values[f.name] = v!),
+          onChanged: busy
+              ? null
+              : (v) => setState(() {
+                  values[f.name] = v!;
+                  if (['C02', 'C04', 'C06'].contains(widget.tool.id)) {
+                    result = null;
+                    error = null;
+                  }
+                }),
         ),
       );
     }
@@ -260,6 +279,12 @@ class _ToolPageState extends State<ToolPage> {
           alignLabelWithHint: true,
         ),
         onChanged: (_) {
+          if (['C02', 'C04', 'C06'].contains(widget.tool.id)) {
+            setState(() {
+              result = null;
+              error = null;
+            });
+          }
           if (hashFile != null) setState(() => hashFile = null);
         },
       ),
@@ -280,11 +305,13 @@ class _ToolPageState extends State<ToolPage> {
                 key: qrKey,
                 child: ColoredBox(
                   color: Colors.white,
-                  child: QrImageView(
-                    data: result!,
-                    size: 240,
-                    backgroundColor: Colors.white,
-                    errorStateBuilder: (c, e) => const Text('内容过长，无法生成二维码'),
+                  child: LayoutBuilder(
+                    builder: (_, box) => QrImageView(
+                      data: result!,
+                      size: box.maxWidth.clamp(80, 240).toDouble(),
+                      backgroundColor: Colors.white,
+                      errorStateBuilder: (c, e) => const Text('内容过长，无法生成二维码'),
+                    ),
                   ),
                 ),
               ),
@@ -400,63 +427,438 @@ class _ToolPageState extends State<ToolPage> {
     });
   }
 
-  Widget calculatorKeys() => Padding(
-    padding: const EdgeInsets.only(bottom: 20),
-    child: LayoutBuilder(
-      builder: (context, box) => Wrap(
-        spacing: 6,
-        runSpacing: 6,
-        children:
-            [
-                  'AC',
-                  '⌫',
-                  '(',
-                  ')',
-                  '7',
-                  '8',
-                  '9',
-                  '÷',
-                  '4',
-                  '5',
-                  '6',
-                  '×',
-                  '1',
-                  '2',
-                  '3',
-                  '-',
-                  '0',
-                  '.',
-                  '=',
-                  '+',
-                  'sin',
-                  'cos',
-                  'tan',
-                  '^',
-                  'sqrt',
-                  'ln',
-                  'log',
-                  'π',
-                  'abs',
-                  'e',
-                  '%',
-                  ',',
-                ]
-                .map(
-                  (key) => SizedBox(
-                    width: (box.maxWidth - 18) / 4,
-                    height: 52,
-                    child: FilledButton.tonal(
-                      onPressed: busy ? null : () => keyPress(key),
-                      style: FilledButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        minimumSize: Size.zero,
+  Widget keyGrid(List<String> keys, {bool scientific = false}) => LayoutBuilder(
+    builder: (_, box) => Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: keys.map((key) {
+        final operator = ['÷', '×', '-', '+', '='].contains(key);
+        final scheme = Theme.of(context).colorScheme;
+        return SizedBox(
+          width: (box.maxWidth - 24) / 4,
+          height: scientific ? 44 : 58,
+          child: FilledButton(
+            onPressed: busy ? null : () => keyPress(key),
+            style: FilledButton.styleFrom(
+              padding: EdgeInsets.zero,
+              minimumSize: Size.zero,
+              backgroundColor: key == '='
+                  ? scheme.primary
+                  : operator
+                  ? scheme.primaryContainer
+                  : scheme.surfaceContainerLow,
+              foregroundColor: key == '='
+                  ? scheme.onPrimary
+                  : operator
+                  ? scheme.onPrimaryContainer
+                  : scheme.onSurface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
+            ),
+            child: Text(
+              key,
+              style: TextStyle(
+                fontSize: scientific ? 14 : 23,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    ),
+  );
+
+  Widget primaryAction(String label, IconData icon) => FilledButton.icon(
+    onPressed: busy ? null : calculate,
+    icon: Icon(icon),
+    label: Text(busy ? '处理中…' : label),
+  );
+
+  Widget inputNamed(String name) =>
+      field(widget.tool.fields.firstWhere((f) => f.name == name));
+
+  List<Widget> designedChildren() {
+    final scheme = Theme.of(context).colorScheme;
+    if (widget.tool.id == 'C01') {
+      return [
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: scheme.primaryContainer,
+            borderRadius: BorderRadius.circular(26),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    'CALCULATOR',
+                    style: Theme.of(context).textTheme.labelMedium
+                        ?.copyWith(letterSpacing: 2),
+                  ),
+                  const Spacer(),
+                  Text(
+                    values['角度模式'] == '度' ? 'DEG' : 'RAD',
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: controllers['表达式'],
+                enabled: !busy,
+                maxLines: 2,
+                minLines: 1,
+                textAlign: TextAlign.right,
+                decoration: const InputDecoration(
+                  labelText: '表达式',
+                  hintText: '输入表达式或点按键盘',
+                ),
+                onChanged: (_) => setState(() {
+                  result = null;
+                  error = null;
+                }),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      reverse: true,
+                      child: SelectableText(
+                        result ?? '结果',
+                        style: Theme.of(context).textTheme.headlineLarge,
                       ),
-                      child: Text(key),
                     ),
                   ),
-                )
-                .toList(),
+                  IconButton(
+                    tooltip: '复制结果',
+                    onPressed: result == null
+                        ? null
+                        : () => Clipboard.setData(ClipboardData(text: result!)),
+                    icon: const Icon(Icons.copy_outlined),
+                  ),
+                  IconButton(
+                    tooltip: '导出结果',
+                    onPressed: result == null ? null : exportLab,
+                    icon: const Icon(Icons.save_alt),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        Align(
+          alignment: Alignment.centerRight,
+          child: SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: '度', label: Text('度')),
+              ButtonSegment(value: '弧度', label: Text('弧度')),
+            ],
+            selected: {values['角度模式']!},
+            onSelectionChanged: busy
+                ? null
+                : (v) => setState(() {
+                    values['角度模式'] = v.first;
+                    result = null;
+                  }),
+          ),
+        ),
+        const SizedBox(height: 16),
+        keyGrid([
+          'AC',
+          '⌫',
+          '%',
+          '÷',
+          '7',
+          '8',
+          '9',
+          '×',
+          '4',
+          '5',
+          '6',
+          '-',
+          '1',
+          '2',
+          '3',
+          '+',
+          '(',
+          '0',
+          '.',
+          '=',
+        ]),
+        const SizedBox(height: 12),
+        Card(
+          margin: EdgeInsets.zero,
+          child: ExpansionTile(
+            title: const Text('科学函数'),
+            subtitle: const Text('三角函数 · 对数 · 括号与常量'),
+            childrenPadding: const EdgeInsets.all(12),
+            children: [
+              keyGrid([
+                'sin',
+                'cos',
+                'tan',
+                ')',
+                'sqrt',
+                'ln',
+                'log',
+                '^',
+                'abs',
+                'π',
+                'e',
+                ',',
+              ], scientific: true),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (error != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Text(error!, style: TextStyle(color: scheme.error)),
+          ),
+        const SizedBox(height: 12),
+        const Text('乘法使用 ×，% 为取余。函数需要完整括号。'),
+        if (widget.state.calculatorHistory.isNotEmpty)
+          Card(
+            child: ExpansionTile(
+              title: const Text('计算历史'),
+              children: widget.state.calculatorHistory.take(10).map((entry) {
+                final item = jsonDecode(entry) as Map;
+                return ListTile(
+                  title: Text(item['expression']),
+                  subtitle: Text(item['result']),
+                  onTap: () => setState(() {
+                    controllers['表达式']!.text = item['expression'];
+                    result = null;
+                    error = null;
+                  }),
+                );
+              }).toList(),
+            ),
+          ),
+      ];
+    }
+    if (widget.tool.id == 'C02') {
+      final options = units.entries
+          .where((e) => e.value.category == unitCategory)
+          .map((e) => e.key)
+          .toList();
+      return [
+        const StudioHeader(
+          label: 'UNIT CONVERTER',
+          title: '在不同尺度之间',
+          subtitle: '先选量纲，再换算。两侧只显示可以互相转换的单位。',
+          icon: Icons.swap_horiz_rounded,
+        ),
+        const SizedBox(height: 20),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: units.values
+              .map((u) => u.category)
+              .toSet()
+              .map(
+                (category) => ChoiceChip(
+                  label: Text(category),
+                  selected: category == unitCategory,
+                  onSelected: busy
+                      ? null
+                      : (_) => setState(() {
+                          unitCategory = category;
+                          values['原单位'] = optionsFor(category).first;
+                          values['目标单位'] = optionsFor(category).last;
+                          result = null;
+                          error = null;
+                        }),
+                ),
+              )
+              .toList(),
+        ),
+        const SizedBox(height: 20),
+        StudioPanel(
+          title: '换算数值',
+          icon: Icons.straighten,
+          child: Column(
+            children: [
+              inputNamed('数值'),
+              field(choice('原单位', options, values['原单位'])),
+              Center(
+                child: IconButton.filledTonal(
+                  tooltip: '交换单位',
+                  icon: const Icon(Icons.swap_vert),
+                  onPressed: busy
+                      ? null
+                      : () => setState(() {
+                          final from = values['原单位'];
+                          values['原单位'] = values['目标单位']!;
+                          values['目标单位'] = from!;
+                          result = null;
+                          error = null;
+                        }),
+                ),
+              ),
+              const SizedBox(height: 12),
+              field(choice('目标单位', options, values['目标单位'])),
+              SizedBox(
+                width: double.infinity,
+                child: primaryAction('换算', Icons.sync_alt),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        if (result != null)
+          resultCard()
+        else
+          emptyResult('换算结果', '选择单位后，点按换算查看结果。', Icons.swap_horiz),
+        const SizedBox(height: 12),
+        Text(widget.tool.hint, style: Theme.of(context).textTheme.bodySmall),
+        if (error != null) Text(error!, style: TextStyle(color: scheme.error)),
+      ];
+    }
+    if (widget.tool.id == 'C04') {
+      return [
+        const StudioHeader(
+          label: 'RANDOM PICK',
+          title: '让选择，轻一点',
+          subtitle: '抽一个选项，或生成一组随机整数。',
+          icon: Icons.casino_outlined,
+        ),
+        const SizedBox(height: 20),
+        SegmentedButton<String>(
+          segments: const [
+            ButtonSegment(
+              value: '选项',
+              icon: Icon(Icons.format_list_bulleted),
+              label: Text('选项抽签'),
+            ),
+            ButtonSegment(
+              value: '整数',
+              icon: Icon(Icons.numbers),
+              label: Text('随机整数'),
+            ),
+          ],
+          selected: {values['模式']!},
+          onSelectionChanged: busy
+              ? null
+              : (v) => setState(() {
+                  values['模式'] = v.first;
+                  result = null;
+                  error = null;
+                }),
+        ),
+        const SizedBox(height: 20),
+        StudioPanel(
+          title: values['模式'] == '选项' ? '候选清单' : '整数范围',
+          child: Column(
+            children: [
+              if (values['模式'] == '选项')
+                inputNamed('选项')
+              else
+                Row(
+                  children: [
+                    Expanded(child: inputNamed('最小值')),
+                    const SizedBox(width: 12),
+                    Expanded(child: inputNamed('最大值')),
+                  ],
+                ),
+              inputNamed('抽取数量'),
+              inputNamed('允许重复'),
+              SizedBox(
+                width: double.infinity,
+                child: primaryAction('抽取一次', Icons.casino_outlined),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        if (error != null) Text(error!, style: TextStyle(color: scheme.error)),
+        if (result != null)
+          resultCard()
+        else
+          emptyResult('等待揭晓', '写下候选选项，让随机给你一个起点。', Icons.auto_awesome_outlined),
+        const SizedBox(height: 12),
+        const Text('不重复抽取会先移除重复选项。每个选项占一行。'),
+      ];
+    }
+    return [
+      const StudioHeader(
+        label: 'QR STUDIO',
+        title: '把信息，变成一码',
+        subtitle: '文本、网址与 Wi-Fi，使用各自的输入方式。',
+        icon: Icons.qr_code_rounded,
       ),
+      const SizedBox(height: 20),
+      SegmentedButton<String>(
+        segments: const [
+          ButtonSegment(value: '文本', label: Text('文本')),
+          ButtonSegment(value: '网址', label: Text('网址')),
+          ButtonSegment(value: 'Wi-Fi', label: Text('Wi-Fi')),
+        ],
+        selected: {values['类型']!},
+        onSelectionChanged: busy
+            ? null
+            : (v) => setState(() {
+                values['类型'] = v.first;
+                result = null;
+                error = null;
+              }),
+      ),
+      const SizedBox(height: 20),
+      StudioPanel(
+        title: values['类型'] == 'Wi-Fi' ? '网络信息' : '编码内容',
+        child: Column(
+          children: [
+            if (values['类型'] == 'Wi-Fi') ...[
+              inputNamed('SSID'),
+              if (values['加密'] != 'nopass') inputNamed('密码'),
+              inputNamed('加密'),
+              inputNamed('隐藏网络'),
+            ] else
+              inputNamed('内容'),
+            SizedBox(
+              width: double.infinity,
+              child: primaryAction('生成二维码', Icons.qr_code_2),
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 20),
+      if (error != null) Text(error!, style: TextStyle(color: scheme.error)),
+      if (result != null)
+        resultCard()
+      else
+        emptyResult('二维码预览', '生成后可保存 PNG 或分享二维码。', Icons.qr_code_2),
+      const SizedBox(height: 12),
+      const Text('Wi-Fi 信息会写入二维码，保存与分享前请核对。'),
+    ];
+  }
+
+  List<String> optionsFor(String category) => units.entries
+      .where((e) => e.value.category == category)
+      .map((e) => e.key)
+      .toList();
+
+  Widget emptyResult(String title, String text, IconData icon) => Container(
+    padding: const EdgeInsets.all(24),
+    decoration: BoxDecoration(
+      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+      borderRadius: BorderRadius.circular(24),
+    ),
+    child: Column(
+      children: [
+        Icon(icon, size: 48, color: Theme.of(context).colorScheme.primary),
+        const SizedBox(height: 12),
+        Text(title, style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 6),
+        Text(text, textAlign: TextAlign.center),
+      ],
     ),
   );
 
@@ -546,125 +948,77 @@ class _ToolPageState extends State<ToolPage> {
           child: ListView(
             padding: const EdgeInsets.all(24),
             children: [
-              Text(
-                widget.tool.description,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
-              if (widget.tool.hint.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 24),
-                  child: Text(
-                    widget.tool.hint,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
+              if (['C01', 'C02', 'C04', 'C06'].contains(widget.tool.id))
+                ...designedChildren()
+              else ...[
+                Text(
+                  widget.tool.description,
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
-              ...visibleFields.map(field),
-              if (widget.tool.id == 'C01')
-                SizedBox(
-                  height: 120,
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: SingleChildScrollView(
-                              child: SelectableText(
-                                result ?? '结果',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .headlineSmall,
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            tooltip: '复制结果',
-                            onPressed: result == null
-                                ? null
-                                : () => Clipboard.setData(
-                                    ClipboardData(text: result!),
-                                  ),
-                            icon: const Icon(Icons.copy),
-                          ),
-                          IconButton(
-                            tooltip: '导出结果',
-                            onPressed: result == null ? null : exportLab,
-                            icon: const Icon(Icons.save_alt),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              if (widget.tool.id == 'C01') calculatorKeys(),
-              if (widget.tool.fields.any(
-                    (f) => f.kind == FieldKind.multiline,
-                  ) ||
-                  widget.tool.id == 'T07')
-                OutlinedButton.icon(
-                  onPressed: busy ? null : pickInput,
-                  icon: const Icon(Icons.file_open_outlined),
-                  label: Text(hashFile == null ? '导入文件' : '已选择文件 · 点击更换'),
-                ),
-              if (hashFile != null)
-                TextButton(
-                  onPressed: () => setState(() => hashFile = null),
-                  child: const Text('改用文本计算'),
-                ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: busy ? null : calculate,
-                      icon: const Icon(Icons.play_arrow),
-                      label: Text(busy ? '处理中…' : '计算 / 处理'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    tooltip: '清空',
-                    onPressed: busy ? null : () => reset(),
-                    icon: const Icon(Icons.clear_all),
-                  ),
-                ],
-              ),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: busy ? null : () => reset(examples: true),
-                  child: const Text('填入示例'),
-                ),
-              ),
-              if (busy) const LinearProgressIndicator(),
-              if (error != null)
-                Semantics(
-                  liveRegion: true,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                const SizedBox(height: 8),
+                if (widget.tool.hint.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 24),
                     child: Text(
-                      error!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
+                      widget.tool.hint,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                ...visibleFields.map(field),
+                if (widget.tool.fields.any(
+                      (f) => f.kind == FieldKind.multiline,
+                    ) ||
+                    widget.tool.id == 'T07')
+                  OutlinedButton.icon(
+                    onPressed: busy ? null : pickInput,
+                    icon: const Icon(Icons.file_open_outlined),
+                    label: Text(hashFile == null ? '导入文件' : '已选择文件 · 点击更换'),
+                  ),
+                if (hashFile != null)
+                  TextButton(
+                    onPressed: () => setState(() => hashFile = null),
+                    child: const Text('改用文本计算'),
+                  ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: busy ? null : calculate,
+                        icon: const Icon(Icons.play_arrow),
+                        label: Text(busy ? '处理中…' : '计算 / 处理'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      tooltip: '清空',
+                      onPressed: busy ? null : () => reset(),
+                      icon: const Icon(Icons.clear_all),
+                    ),
+                  ],
+                ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: busy ? null : () => reset(examples: true),
+                    child: const Text('填入示例'),
+                  ),
+                ),
+                if (busy) const LinearProgressIndicator(),
+                if (error != null)
+                  Semantics(
+                    liveRegion: true,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      child: Text(
+                        error!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              if (result != null && widget.tool.id != 'C01') resultCard(),
-              if (widget.tool.id == 'C01' &&
-                  widget.state.calculatorHistory.isNotEmpty) ...[
-                const SizedBox(height: 20),
-                const Text('计算历史'),
-                ...widget.state.calculatorHistory.take(10).map((e) {
-                  final value = jsonDecode(e) as Map;
-                  return ListTile(
-                    title: Text(value['expression'] as String),
-                    subtitle: Text(value['result'] as String),
-                    onTap: () => controllers['表达式']!.text =
-                        value['expression'] as String,
-                  );
-                }),
+                if (result != null) resultCard(),
               ],
             ],
           ),

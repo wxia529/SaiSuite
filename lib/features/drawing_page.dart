@@ -67,15 +67,19 @@ class _DrawingPageState extends State<DrawingPage> {
   bool eraser = false, dirty = false, busy = false, drawingAccepted = false;
   int? drawingPointer;
   bool fullScreen = false;
+  Size? drawingSize;
   // Fixed export coordinates keep the drawing stable across rotation.
-  static const canvasSize = Size(900, 900);
+  Size get canvasSize => drawingSize ?? const Size(900, 900);
   Future<void> export() async {
     setState(() => busy = true);
     try {
       final recorder = ui.PictureRecorder();
       DrawingPainter(strokes).paint(Canvas(recorder), canvasSize);
       final picture = recorder.endRecording(),
-          image = await picture.toImage(900, 900);
+          image = await picture.toImage(
+            canvasSize.width.round(),
+            canvasSize.height.round(),
+          );
       try {
         final bytes = (await image.toByteData(format: ui.ImageByteFormat.png))!
             .buffer
@@ -117,7 +121,10 @@ class _DrawingPageState extends State<DrawingPage> {
       return;
     }
     final point = p / scale;
-    if (point.dx < 0 || point.dy < 0 || point.dx > 900 || point.dy > 900) {
+    if (point.dx < 0 ||
+        point.dy < 0 ||
+        point.dx > canvasSize.width ||
+        point.dy > canvasSize.height) {
       return;
     }
     setState(() => strokes.last.points.add(point));
@@ -152,9 +159,9 @@ class _DrawingPageState extends State<DrawingPage> {
 
   Widget drawingCanvas() => LayoutBuilder(
     builder: (c, b) {
-      final scale = b.maxWidth / 900;
+      final scale = b.maxWidth / canvasSize.width;
       return AspectRatio(
-        aspectRatio: 1,
+        aspectRatio: canvasSize.aspectRatio,
         child: ClipRect(
           child: RawGestureDetector(
             // Claim canvas touches before the surrounding vertical list.
@@ -192,8 +199,8 @@ class _DrawingPageState extends State<DrawingPage> {
               child: FittedBox(
                 fit: BoxFit.fill,
                 child: SizedBox(
-                  width: 900,
-                  height: 900,
+                  width: canvasSize.width,
+                  height: canvasSize.height,
                   child: CustomPaint(painter: DrawingPainter(strokes)),
                 ),
               ),
@@ -206,6 +213,7 @@ class _DrawingPageState extends State<DrawingPage> {
 
   Widget colorMenu() => PopupMenuButton<Color>(
     tooltip: '画笔颜色',
+    enabled: !busy,
     icon: Icon(Icons.circle, color: color),
     onSelected: (c) => setState(() {
       color = c;
@@ -296,52 +304,71 @@ class _DrawingPageState extends State<DrawingPage> {
         onPressed: busy ? null : () => setState(() => fullScreen = true),
       ),
     ],
-    body: fullScreen
-        ? SafeArea(
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        tooltip: '退出全屏',
-                        onPressed: () => setState(() => fullScreen = false),
-                        icon: const Icon(Icons.fullscreen_exit),
-                      ),
-                      Text(
-                        '画板',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const Spacer(),
-                      Text('${eraser ? '橡皮' : '画笔'} ${width.round()}'),
-                    ],
+    body: SafeArea(
+      child: Column(
+        children: [
+          if (fullScreen)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: [
+                  IconButton(
+                    tooltip: '退出全屏',
+                    onPressed: busy
+                        ? null
+                        : () => setState(() => fullScreen = false),
+                    icon: const Icon(Icons.fullscreen_exit),
                   ),
-                ),
-                Expanded(
+                  Text('画板', style: Theme.of(context).textTheme.titleMedium),
+                  const Spacer(),
+                  const Text('导出后保留作品', style: TextStyle(fontSize: 12)),
+                ],
+              ),
+            ),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (_, box) {
+                drawingSize ??= Size(
+                  900,
+                  (900 * box.maxHeight / box.maxWidth)
+                      .clamp(300, 4096)
+                      .roundToDouble(),
+                );
+                final scale =
+                    (box.maxWidth / canvasSize.width) <
+                        (box.maxHeight / canvasSize.height)
+                    ? box.maxWidth / canvasSize.width
+                    : box.maxHeight / canvasSize.height;
+                return ColoredBox(
+                  color: Theme.of(context).colorScheme.surfaceContainer,
                   child: Center(
-                    child: LayoutBuilder(
-                      builder: (_, box) {
-                        final side = box.maxWidth < box.maxHeight
-                            ? box.maxWidth
-                            : box.maxHeight;
-                        return SizedBox(
-                          width: side,
-                          height: side,
-                          child: drawingCanvas(),
-                        );
-                      },
+                    child: RepaintBoundary(
+                      child: SizedBox(
+                        width: canvasSize.width * scale,
+                        height: canvasSize.height * scale,
+                        child: drawingCanvas(),
+                      ),
                     ),
                   ),
-                ),
-                Material(
-                  color: Theme.of(context).colorScheme.surfaceContainerLow,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
+                );
+              },
+            ),
+          ),
+          Material(
+            color: Theme.of(context).colorScheme.surfaceContainerLow,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  editingTools(),
+                  Row(
                     children: [
-                      editingTools(),
-                      SizedBox(
-                        height: 36,
+                      Text(
+                        '${eraser ? '橡皮' : '画笔'} ${width.round()}',
+                        style: Theme.of(context).textTheme.labelMedium,
+                      ),
+                      Expanded(
                         child: Slider(
                           value: width,
                           min: 1,
@@ -353,29 +380,13 @@ class _DrawingPageState extends State<DrawingPage> {
                       ),
                     ],
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          )
-        : null,
-    children: [
-      const Text('画布不会自动保存。需要保留时请导出 PNG。'),
-      const SizedBox(height: 12),
-      editingTools(),
-      Text('${eraser ? '橡皮' : '画笔'}粗细 ${width.round()}'),
-      Slider(
-        value: width,
-        min: 1,
-        max: 60,
-        onChanged: busy ? null : (v) => setState(() => width = v),
+          ),
+        ],
       ),
-      drawingCanvas(),
-      const SizedBox(height: 12),
-      FilledButton.icon(
-        onPressed: busy ? null : export,
-        icon: const Icon(Icons.save_alt),
-        label: Text(busy ? '导出中…' : '导出 PNG'),
-      ),
-    ],
+    ),
+    children: const [],
   );
 }
