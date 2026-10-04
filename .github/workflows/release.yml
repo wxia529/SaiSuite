@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: signed-packages-${{ github.ref }}
+  group: signed-packages-${{ github.repository }}
   cancel-in-progress: false
 
 jobs:
@@ -18,22 +18,24 @@ jobs:
     if: github.repository == 'wxia529/SaiSuite' && (github.ref_type == 'tag' || github.ref == 'refs/heads/main')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    outputs:
+      should_build: ${{ steps.plan.outputs.should_build }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - env:
+      - id: plan
+        env:
           RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+          RELEASE_PUBLISH: ${{ github.event_name == 'push' && github.ref_type == 'tag' }}
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
         run: python3 tools/release.py version
-
-  checks:
-    needs: preflight
-    uses: ./.github/workflows/ci.yml
 
   build:
     name: Build and verify four signed APKs
-    needs: checks
-    if: github.repository == 'wxia529/SaiSuite' && (github.ref_type == 'tag' || github.ref == 'refs/heads/main')
+    needs: preflight
+    if: needs.preflight.outputs.should_build == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 50
     outputs:

@@ -27,7 +27,7 @@ Android 工具箱，Flutter + Dart + Material 3。v1.4.0 共 **60 项工具**：
 
 ## 文档
 
-- [GitHub Actions 与首次推送](docs/GITHUB_ACTIONS.md)：自动测试、原密钥签名、四包构建、标签发布与 Secrets 配置。
+- [GitHub Actions 与首次推送](docs/GITHUB_ACTIONS.md)：原密钥签名、四包构建、标签发布与 Secrets 配置；测试在本地进行。
 - [更新检查与 GitHub 发布](docs/UPDATES.md)：自动检查规则、版本号和四包发布步骤。
 - [v1.3.1 范围调整](docs/V1_3_1_GUIDE.md)：移除的工具、升级处理与当前科研功能。
 - [v1.3 使用说明](docs/V1_3_GUIDE.md)：八个常用工具新版界面、时间轴、适配画布与指南针。

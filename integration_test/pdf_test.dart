@@ -213,10 +213,20 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('处理 / 查看'));
+      // ListView builds children lazily; small emulator viewports may not have
+      // built the action button until we scroll toward it.
+      await tester.scrollUntilVisible(
+        find.text('处理 / 查看'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.tap(find.text('处理 / 查看'));
       await tester.pump(const Duration(milliseconds: 100));
-      await tester.ensureVisible(find.text('取消当前操作'));
+      await tester.scrollUntilVisible(
+        find.text('取消当前操作'),
+        100,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.tap(find.text('取消当前操作'));
       await tester.pumpAndSettle();
       expect(find.textContaining('操作已取消'), findsOneWidget);

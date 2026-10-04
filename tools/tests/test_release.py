@@ -115,7 +115,8 @@ class ReleaseChecks(unittest.TestCase):
         draft = {"draft": True, "assets": [{"name": p.name, "size": p.stat().st_size} for p in assets]}
         for complete in [False, True]:
             response = draft if complete else {"draft": True, "assets": []}
-            with patch.object(release, "ROOT", self.root), patch.object(release, "version", return_value=("1.4.0", 9)), patch.dict(os.environ, {"GH_REPO": "wxia529/SaiSuite", "RELEASE_TAG": "v1.4.0+9"}), patch.object(release, "github_get", side_effect=[None, None, response]), patch.object(release.subprocess, "run") as run:
+            ref = {"object": {"type": "commit", "sha": "a" * 40}}
+            with patch.object(release, "ROOT", self.root), patch.object(release, "version", return_value=("1.4.0", 9)), patch.dict(os.environ, {"GH_REPO": "wxia529/SaiSuite", "RELEASE_TAG": "v1.4.0+9", "GITHUB_SHA": "a" * 40}), patch.object(release, "github_get", side_effect=[None, None, ref, response]), patch.object(release.subprocess, "run") as run:
                 if complete:
                     release.publish()
                 else:
@@ -123,6 +124,7 @@ class ReleaseChecks(unittest.TestCase):
                         release.publish()
             commands = [call.args[0] for call in run.call_args_list]
             self.assertIn("--draft", commands[0])
+            self.assertIn("--verify-tag", commands[0])
             self.assertEqual(commands[1][2], "upload")
             self.assertEqual(any("--draft=false" in command for command in commands), complete)
 
@@ -132,6 +134,24 @@ class ReleaseChecks(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "already public"):
                 release.publish()
         run.assert_not_called()
+
+    def test_duplicate_publication_is_skipped_but_drafts_can_resume(self):
+        for response, expected in [(None, False), ({"draft": True}, False), ({"draft": False}, True)]:
+            with patch.object(release, "github_get", return_value=response):
+                self.assertEqual(release.is_published("wxia529/SaiSuite", "v1.4.0+9"), expected)
+
+    def test_existing_tag_must_match_artifact_source(self):
+        source = "a" * 40
+        with patch.object(release, "github_get", return_value={"object": {"type": "commit", "sha": source}}):
+            release.verify_tag_source("wxia529/SaiSuite", "v1.4.0+9", source)
+        with patch.object(release, "github_get", return_value=None):
+            with self.assertRaisesRegex(ValueError, "Push the release tag"):
+                release.verify_tag_source("wxia529/SaiSuite", "v1.4.0+9", source)
+        with patch.object(release, "github_get", side_effect=[{"object": {"type": "tag", "sha": "b" * 40}}, {"object": {"type": "commit", "sha": source}}]):
+            release.verify_tag_source("wxia529/SaiSuite", "v1.4.0+9", source)
+        with patch.object(release, "github_get", return_value={"object": {"type": "commit", "sha": "b" * 40}}):
+            with self.assertRaisesRegex(ValueError, "another commit"):
+                release.verify_tag_source("wxia529/SaiSuite", "v1.4.0+9", source)
 
 
 if __name__ == "__main__":

@@ -6,19 +6,23 @@
 
 | 触发方式 | 行为 |
 |---|---|
-| 推送 main、Pull Request，或手动运行 Android checks | 静态分析、Flutter 单元/界面测试、发布脚本测试，以及 API 36 原生 PDF、媒体/设备、更新检查测试 |
-| 手动运行 Signed Android packages（选择 main） | 先完成上述测试，再生成四种正式签名 APK 和校验文件；上传 Actions artifact，不创建公开 Release |
-| 推送 `vX.Y.Z+构建号` 标签 | 测试、四包构建和校验全部通过后，创建 Release 草稿、上传全部九个附件，再公开并设为最新正式版本 |
+| 推送 main 或 Pull Request | 不启动构建、测试或发布；测试在本地进行 |
+| 手动运行 Signed Android packages（选择 main） | 直接生成四种正式签名 APK 和校验文件；上传 Actions artifact，不创建公开 Release |
+| 推送 `vX.Y.Z+构建号` 标签 | 直接构建四包，校验通过后创建 Release 草稿、上传全部九个附件，再公开并设为最新正式版本 |
+
+按用户要求，GitHub 不运行静态分析、单元/界面测试或模拟器集成测试；发布前在本机完成所需验证。云端保留版本、签名、架构及 SHA-256 检查，防止错误安装包公开。已公开的同版本会跳过重复发布；新版本必须提高构建号。
 
 固定使用 Flutter 3.47.6、Temurin JDK 17、Android 平台 36、Build Tools 36.0.0、NDK 28.2.13676358、CMake 3.22.1；Gradle/AGP/Kotlin 继续使用仓库配置。JDK 17 满足当前 AGP 要求，字节码仍为 JVM 17。本机使用 JBR 25 不影响签名一致性；不同构建环境生成的 APK 校验值可能不同。
 
-通过固定提交的 `android-actions/setup-android` 显式安装命令行工具 16.0（12266719）和上述 SDK 包，配置 SDK 环境变量、PATH 与许可证；不依赖运行器预装工具是否可直接调用。Flutter 构建前会检查 `sdkmanager` 路径和版本。测试和正式包构建共用此配置。
+通过固定提交的 `android-actions/setup-android` 显式安装命令行工具 16.0（12266719）和上述 SDK 包，配置 SDK 环境变量、PATH 与许可证；不依赖运行器预装工具是否可直接调用。Flutter 构建前会检查 `sdkmanager` 路径和版本。
 
-第三方 Actions 固定到提交 SHA。常规测试不读取签名 Secrets；只有正式包构建读取四项签名 Secrets，发布 job 才获得仓库写权限。PR 不构建正式签名包。CI 临时密钥使用后删除，不纳入构建产物或日志。
+第三方 Actions 固定到提交 SHA。只有正式包构建读取四项签名 Secrets，发布 job 才获得仓库写权限。PR 不构建正式签名包。CI 临时密钥使用后删除，不纳入构建产物或日志。
 
-API 36 模拟器启动后核对实际设备 ID 和 SDK。媒体测试需要下载官方测试视频，更新检查测试会访问 GitHub API，因此网络异常可能导致设备测试失败，失败时检查 Actions 的日志附件。源码推送不会直接发布 App 更新。
+本地测试仍默认使用 API 36，执行前核对实际设备 ID 和 SDK。源码推送不会直接发布 App 更新。
 
 ## 首次配置签名 Secrets
+
+当前仓库的四项签名 Secrets 已于 2026-10-04 使用本机原密钥加密配置完成。以下步骤用于恢复或迁移配置。
 
 在仓库 **Settings → Secrets and variables → Actions → New repository secret** 添加：
 
@@ -53,14 +57,14 @@ Set-Clipboard -Value ''
 git push -u origin main
 ```
 
-检查 **Android checks** 成功，再手动运行 **Signed Android packages**，下载 artifact，确认四个 APK 可用。手动构建成功后，准备公开发布时创建并推送版本标签：
+本地验证完成后，可手动运行 **Signed Android packages** 下载 artifact；正式发布直接创建并推送版本标签：
 
 ```powershell
 git tag -a 'v1.4.0+9' -m 'SaiSuite v1.4.0'
 git push origin 'v1.4.0+9'
 ```
 
-标签必须与 pubspec 版本和构建号完全一致，应用显示版本必须一致，且 `docs/releases/v1.4.0.md` 必须存在。基础构建号限制在 1–999，以保持现有 ABI 版本码约定。后续发布必须增加基础构建号，且不能降低应用版本。
+标签必须与 pubspec 版本和构建号完全一致，应用显示版本必须一致，且 `docs/releases/v1.4.0.md` 必须存在。标签必须指向实际构建源码提交，发布时也会核对；失败且尚未公开的旧标签可以重新指向修复提交再推送，已公开版本不覆盖。基础构建号限制在 1–999，以保持现有 ABI 版本码约定。后续发布必须增加基础构建号，且不能降低应用版本。
 
 每次发布包含 `SaiSuite-版本-universal.apk`、`arm64-v8a.apk`、`armeabi-v7a.apk`、`x86_64.apk`，四份同名 `.apk.sha256` 和 `SHA256SUMS.txt`，共九个附件。校验包名、minSdk 24、targetSdk 36、各包版本码、原签名和实际原生架构后才上传。
 
@@ -81,8 +85,10 @@ python tools/release.py verify
 
 `verify` 检查当前版本的四包并重算校验文件；不修改 APK。`prepare-signing` 专供 CI 使用，拒绝覆盖已有本地签名配置。`clean-signing` 只清理 CI 临时配置，不删除现有正式密钥。
 
-相关官方资料：[GitHub 工作流语法](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax)、[Android Gradle Plugin 9.1 工具链要求](https://developer.android.com/build/releases/agp-9-1-0-release-notes)、[Android SDK 安装 Action](https://github.com/android-actions/setup-android)、[API 模拟器运行 Action](https://github.com/ReactiveCircus/android-emulator-runner)。
+相关官方资料：[GitHub 工作流语法](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax)、[Android Gradle Plugin 9.1 工具链要求](https://developer.android.com/build/releases/agp-9-1-0-release-notes)、[Android SDK 安装 Action](https://github.com/android-actions/setup-android)。
 
 2026-10-04 本地验证：actionlint 1.7.12 工作流检查通过、Bash 语法检查通过、11 项发布脚本测试通过；现有 v1.4.0 四包经新脚本验证原签名、版本码、SDK、权限、架构和校验值。真实密钥的 CI 恢复及 Java 属性读取往返也已验证。上述检查不能代替云端执行。
 
 首次云端执行在 SDK 环境初始化失败，日志为 `sdkmanager: command not found`（退出码 127）。已将隐含的预装工具依赖改为上述显式安装步骤；修复后的云端执行结果仍需在推送新提交后验证。
+
+SDK 修复后，云端构建 debug 包成功，PDF 测试在较小视口中访问尚未构建的按钮失败；该测试已改为滚动到按钮再点击。本机 API 36 在 720×1280 / 420 dpi 视口下，PDF、媒体/设备与更新检查三个集成测试均通过。此后按用户要求取消云端测试，仅由 tag 触发正式构建与发布。

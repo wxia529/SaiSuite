@@ -204,6 +204,29 @@ def check_upgrade(current: tuple[str, int], previous_tag: str):
         raise ValueError("Release must increase the build number and must not decrease the version")
 
 
+def is_published(repo: str, tag: str) -> bool:
+    existing = github_get(repo, "releases/tags/" + quote(tag, safe=""))
+    return bool(existing and not existing["draft"])
+
+
+def verify_tag_source(repo: str, tag: str, source: str):
+    if not re.fullmatch(r"[0-9a-f]{40}", source):
+        raise ValueError("A valid source commit SHA is required for publication")
+    ref = github_get(repo, "git/ref/tags/" + quote(tag, safe=""))
+    if ref is None:
+        raise ValueError("Push the release tag before publishing")
+    obj = ref["object"]
+    for _ in range(5):
+        if obj["type"] == "commit":
+            if obj["sha"] != source:
+                raise ValueError("Existing release tag points to another commit; update the unpublished tag or increase the build number")
+            return
+        if obj["type"] != "tag":
+            break
+        obj = github_get(repo, "git/tags/" + obj["sha"])["object"]
+    raise ValueError("Release tag does not resolve to a commit")
+
+
 def publish():
     name, build = version(tag=os.environ["RELEASE_TAG"])
     repo, tag = os.environ["GH_REPO"], os.environ["RELEASE_TAG"]
@@ -216,6 +239,8 @@ def publish():
     latest = github_get(repo, "releases/latest")
     if latest:
         check_upgrade((name, build), latest["tag_name"])
+    source = os.environ.get("GITHUB_SHA", "")
+    verify_tag_source(repo, tag, source)
     if not existing:
         subprocess.run(["gh", "release", "create", tag, "--verify-tag", "--draft", "--title",
                         f"SaiSuite v{name}", "--notes-file", str(ROOT / f"docs/releases/v{name}.md")], check=True)
@@ -237,7 +262,13 @@ def main():
     args = parser.parse_args()
     if args.command == "version":
         name, build = version(tag=os.environ.get("RELEASE_TAG", ""))
-        output = f"version={name}\nbuild={build}\ntag=v{name}+{build}\n"
+        tag = f"v{name}+{build}"
+        should_build = True
+        if os.environ.get("RELEASE_PUBLISH") == "true":
+            should_build = not is_published(os.environ["GH_REPO"], tag)
+            if not should_build:
+                print("Version is already published; skipping duplicate publication. Increase the build number for a new release.")
+        output = f"version={name}\nbuild={build}\ntag={tag}\nshould_build={str(should_build).lower()}\n"
         print(output, end="")
         if os.environ.get("GITHUB_OUTPUT"):
             with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:

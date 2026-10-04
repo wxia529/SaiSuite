@@ -22,7 +22,7 @@
 
 当前正式密钥在 `.private/saisuite-release.jks`，配置在 `android/key.properties`，均被 Git 忽略。请将这两个文件一并安全备份，后续升级必须沿用同一密钥；丢失密钥会影响覆盖安装。密码不要放进文档、命令记录、仓库或聊天。
 
-GitHub 云端构建通过四项仓库 Secrets 恢复同一密钥，并强制核对原证书。自动测试、Universal 与三个分架构包、标签 Release 的配置步骤见 [GitHub Actions 与首次推送](GITHUB_ACTIONS.md)。
+GitHub 云端构建通过四项仓库 Secrets 恢复同一密钥，并强制核对原证书。测试在本地进行，tag 推送直接构建 Universal 与三个分架构包并发布 Release；配置步骤见 [GitHub Actions 与首次推送](GITHUB_ACTIONS.md)。
 
 新机器恢复备份后，检查配置中的路径：
 
