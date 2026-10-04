@@ -41,14 +41,14 @@ Android 工具箱，Flutter + Dart + Material 3。v1.3.1 共 **60 项工具**：
 
 ## 开发
 
-默认设备测试使用 Android 13（API 33）的 `SaiSuite_API_33` 模拟器，执行前核对实际设备 ID。其他系统版本按兼容需求补充验证，详见 [构建说明](docs/BUILD.md)。
+默认设备测试使用 Android 16（API 36）的 `SaiSuite_API_36` 模拟器，执行前核对实际设备 ID。其他系统版本按兼容需求补充验证，详见 [构建说明](docs/BUILD.md)。
 
 ```powershell
 flutter pub get
 flutter analyze
 flutter test
-flutter test integration_test/pdf_test.dart -d emulator-5556
-flutter test integration_test/tools_test.dart -d emulator-5556
+flutter test integration_test/pdf_test.dart -d emulator-5558
+flutter test integration_test/tools_test.dart -d emulator-5558
 flutter build apk --release
 ```
 

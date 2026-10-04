@@ -293,3 +293,10 @@
 - 检查时应用进程仍正常运行，Android crash 日志为空。本轮为基础手动检查，未重复全部自动测试，也未验证全部 60 项功能、视频编解码或后台计时提醒。该结果仅证明以上项目在 Android 13 模拟器通过，不能替代 Android 7 或实体旧手机验收。
 
 证据保存在 `.buildlog/api33-{home,calculator,science,pdf-information,pdf-saved}.xml`、`api33-smoke-result.json` 与 `api33-P05-result.pdf`。
+
+
+## 默认测试环境切换至 Android 16 / API 36（2026-10-04）
+
+按用户最新要求，默认开发、设备集成测试和安装包检查改用 Android 16（API 36），取代此前默认 Android 13 的约定。已安装官方 `system-images;android-36;google_apis;x86_64`，创建并启动 `SaiSuite_API_36`（当前 `emulator-5558`）。设备读数确认 SDK 36、Android 16。
+
+现有 v1.3.1 x86_64 正式包安装成功，versionCode 4008，启动状态为 `ok`，首页显示 60 个工具。本轮仅检查环境、安装与启动，未重复完整功能测试；此前 Android 13 的检查记录保留。证据：`.buildlog/api36-home.xml`。应用 minSdk 24、targetSdk/compileSdk 36 保持不变，没有重新打包。
