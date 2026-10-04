@@ -48,6 +48,8 @@ flutter build apk --release
 
 APK 输出 `build/app/outputs/flutter-apk/app-release.apk`，交付副本 `dist/SaiSuite-1.0.0.apk`。默认 APK 包含 arm64-v8a、armeabi-v7a 与 x86_64。需要独立架构包可另外执行 `flutter build apk --release --split-per-abi`。
 
+交付要求：Universal 与独立架构包同时提供。每次更新先构建并复制保存 Universal，再构建并保存三种独立包，不用独立包替代通用包；四种包来自同一份源码、同一版本号和同一签名密钥，并更新全部校验值。
+
 ### 已交付的独立架构包
 
 2026-10-04 已执行：

@@ -7,7 +7,16 @@
 - 电化学：面积、归一化、理论容量、N/P、浆料、电解液、溶剂配比、参比换算、iR 校正、电流积分。
 - 统一搜索、分类、收藏排序、最近使用、计算器历史、三种主题；结果可复制、保存和分享。
 
-安装包交付位置：`dist/SaiSuite-1.0.0.apk` 是通用包；另提供 `SaiSuite-1.0.0-arm64-v8a.apk`（29.79 MiB）、`SaiSuite-1.0.0-armeabi-v7a.apk`（27.35 MiB）与 `SaiSuite-1.0.0-x86_64.apk`（31.20 MiB）。按设备支持的 CPU 架构选一个安装，三种独立包的功能相同。校验值在 `dist/SHA256SUMS.txt`。签名密钥与构建产物不提交到 Git。Android 包名：`io.github.wxia529.saisuite`。
+每次正式交付同时保留 **Universal 通用包和三种独立架构包**，当前四种版本都在 `dist/`：
+
+| 版本 | 文件 | 大小 |
+|---|---|---:|
+| Universal（三种架构） | SaiSuite-1.0.0.apk | 63.78 MiB |
+| ARM64 | SaiSuite-1.0.0-arm64-v8a.apk | 29.79 MiB |
+| ARM32 | SaiSuite-1.0.0-armeabi-v7a.apk | 27.35 MiB |
+| x86_64 | SaiSuite-1.0.0-x86_64.apk | 31.20 MiB |
+
+按设备支持的 CPU 架构选一个安装，四种版本功能相同；不确定架构时使用 Universal。校验值在 `dist/SHA256SUMS.txt`。签名密钥与构建产物不提交到 Git。Android 包名：`io.github.wxia529.saisuite`。
 
 ## 文档
 
