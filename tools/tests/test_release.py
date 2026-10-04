@@ -1,0 +1,138 @@
+import base64
+import hashlib
+import importlib.util
+import os
+from pathlib import Path
+import subprocess
+import tempfile
+import unittest
+from unittest.mock import patch
+
+spec = importlib.util.spec_from_file_location("release", Path(__file__).resolve().parents[1] / "release.py")
+release = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(release)
+
+
+class ReleaseChecks(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        (self.root / "android").mkdir()
+        (self.root / "lib/core").mkdir(parents=True)
+        (self.root / "docs/releases").mkdir(parents=True)
+        (self.root / "pubspec.yaml").write_text("version: 1.4.0+9\n", encoding="utf-8")
+        (self.root / "lib/core/updates.dart").write_text("const appVersion = '1.4.0';", encoding="utf-8")
+        (self.root / "docs/releases/v1.4.0.md").write_text("Release notes", encoding="utf-8")
+        self.env = dict(zip(release.SIGNING_NAMES, [base64.b64encode(b"test-key").decode(), "p a\\ss:=密😀", "alias", "key\npassword"]))
+
+    def test_version_tag_and_display_must_match(self):
+        self.assertEqual(release.version(self.root, "v1.4.0+9"), ("1.4.0", 9))
+        for tag in ["v1.4.0", "v1.4.0+10", "v1.3.0+9"]:
+            with self.assertRaises(ValueError):
+                release.version(self.root, tag)
+        (self.root / "lib/core/updates.dart").write_text("const appVersion = '1.3.0';", encoding="utf-8")
+        with self.assertRaises(ValueError):
+            release.version(self.root)
+
+    def test_missing_notes_and_unsafe_build_numbers_fail(self):
+        (self.root / "docs/releases/v1.4.0.md").unlink()
+        with self.assertRaises(ValueError):
+            release.version(self.root)
+        for value in ["1.4.0+0", "1.4.0+1000", "1.4.0", "1.4.0+9\nvalue", "01.4.0+9"]:
+            with self.assertRaises(ValueError):
+                release.parse_version(value)
+
+    def test_java_password_escaping(self):
+        self.assertEqual(release.property_escape(self.env["ANDROID_KEYSTORE_PASSWORD"]), r"p\ a\\ss\:\=\u5bc6\ud83d\ude00")
+        self.assertEqual(release.property_escape(" a\n\r\t\f#!"), r"\ a\n\r\t\f\#\!")
+
+    def test_missing_and_corrupt_secrets_create_no_files(self):
+        for env in [{}, {**self.env, "ANDROID_KEYSTORE_BASE64": "!!"}, {**self.env, "ANDROID_KEY_ALIAS": ""}]:
+            with self.assertRaises(ValueError):
+                release.prepare_signing(self.root, env)
+        self.assertFalse((self.root / "android/key.properties").exists())
+        self.assertFalse((self.root / ".private/ci-release.jks").exists())
+
+    def test_wrong_certificate_is_removed(self):
+        cert = subprocess.CompletedProcess([], 0, stdout=b"different-cert", stderr=b"")
+        with patch.object(release.subprocess, "run", return_value=cert):
+            with self.assertRaisesRegex(ValueError, "certificate"):
+                release.prepare_signing(self.root, self.env)
+        self.assertFalse((self.root / ".private/ci-release.jks").exists())
+        self.assertFalse((self.root / "android/key.properties").exists())
+
+    def test_original_certificate_writes_escaped_properties_and_cleans(self):
+        cert = subprocess.CompletedProcess([], 0, stdout=b"test-cert", stderr=b"")
+        with patch.object(release, "EXPECTED_CERT", hashlib.sha256(cert.stdout).hexdigest()), patch.object(release.subprocess, "run", return_value=cert) as run:
+            release.prepare_signing(self.root, self.env)
+        args = run.call_args.args[0]
+        self.assertIn("-storepass:env", args)
+        self.assertNotIn(self.env["ANDROID_KEYSTORE_PASSWORD"], args)
+        props = self.root / "android/key.properties"
+        self.assertIn(r"keyPassword=key\npassword", props.read_text(encoding="ascii"))
+        release.clean_signing(self.root)
+        self.assertFalse(props.exists())
+        self.assertFalse((self.root / ".private/ci-release.jks").exists())
+
+    def test_local_signing_files_cannot_be_overwritten_or_cleaned(self):
+        props = self.root / "android/key.properties"
+        props.write_text("storeFile=../.private/saisuite-release.jks\n", encoding="ascii")
+        with self.assertRaises(ValueError):
+            release.prepare_signing(self.root, self.env)
+        release.clean_signing(self.root)
+        self.assertTrue(props.exists())
+
+    def test_upgrade_requires_higher_build_and_no_version_downgrade(self):
+        release.check_upgrade(("1.10.0", 10), "v1.9.0+9")
+        release.check_upgrade(("1.4.0", 10), "v1.4.0+9")
+        for current in [("1.5.0", 9), ("1.3.0", 10), ("1.4.0", 8)]:
+            with self.assertRaises(ValueError):
+                release.check_upgrade(current, "v1.4.0+9")
+
+    def test_artifact_tampering_blocks_publish(self):
+        self.make_assets(self.root)
+        self.assertEqual(len(release.verify_checksums(self.root, "1.4.0")), 9)
+        (self.root / release.filenames("1.4.0")[0]).write_bytes(b"tampered")
+        with self.assertRaises(ValueError):
+            release.verify_checksums(self.root, "1.4.0")
+
+    def make_assets(self, folder):
+        folder.mkdir(exist_ok=True)
+        lines = []
+        for name in release.filenames("1.4.0"):
+            apk = folder / name
+            apk.write_bytes(b"fixture " + name.encode())
+            line = f"{release.digest(apk)}  {name}\n"
+            apk.with_suffix(".apk.sha256").write_text(line, encoding="ascii")
+            lines.append(line)
+        (folder / "SHA256SUMS.txt").write_text("".join(lines), encoding="ascii")
+
+    def test_publish_checks_complete_draft_before_publication(self):
+        dist = self.root / "dist"
+        self.make_assets(dist)
+        assets = release.verify_checksums(dist, "1.4.0")
+        draft = {"draft": True, "assets": [{"name": p.name, "size": p.stat().st_size} for p in assets]}
+        for complete in [False, True]:
+            response = draft if complete else {"draft": True, "assets": []}
+            with patch.object(release, "ROOT", self.root), patch.object(release, "version", return_value=("1.4.0", 9)), patch.dict(os.environ, {"GH_REPO": "wxia529/SaiSuite", "RELEASE_TAG": "v1.4.0+9"}), patch.object(release, "github_get", side_effect=[None, None, response]), patch.object(release.subprocess, "run") as run:
+                if complete:
+                    release.publish()
+                else:
+                    with self.assertRaisesRegex(ValueError, "incomplete"):
+                        release.publish()
+            commands = [call.args[0] for call in run.call_args_list]
+            self.assertIn("--draft", commands[0])
+            self.assertEqual(commands[1][2], "upload")
+            self.assertEqual(any("--draft=false" in command for command in commands), complete)
+
+    def test_public_release_cannot_be_replaced(self):
+        self.make_assets(self.root / "dist")
+        with patch.object(release, "ROOT", self.root), patch.object(release, "version", return_value=("1.4.0", 9)), patch.dict(os.environ, {"GH_REPO": "wxia529/SaiSuite", "RELEASE_TAG": "v1.4.0+9"}), patch.object(release, "github_get", return_value={"draft": False}), patch.object(release.subprocess, "run") as run:
+            with self.assertRaisesRegex(ValueError, "already public"):
+                release.publish()
+        run.assert_not_called()
+
+
+if __name__ == "__main__":
+    unittest.main()
