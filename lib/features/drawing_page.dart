@@ -66,6 +66,7 @@ class _DrawingPageState extends State<DrawingPage> {
   double width = 6;
   bool eraser = false, dirty = false, busy = false, drawingAccepted = false;
   int? drawingPointer;
+  bool fullScreen = false;
   // Fixed export coordinates keep the drawing stable across rotation.
   static const canvasSize = Size(900, 900);
   Future<void> export() async {
@@ -149,130 +150,226 @@ class _DrawingPageState extends State<DrawingPage> {
     }
   }
 
+  Widget drawingCanvas() => LayoutBuilder(
+    builder: (c, b) {
+      final scale = b.maxWidth / 900;
+      return AspectRatio(
+        aspectRatio: 1,
+        child: ClipRect(
+          child: RawGestureDetector(
+            // Claim canvas touches before the surrounding vertical list.
+            gestures: {
+              EagerGestureRecognizer:
+                  GestureRecognizerFactoryWithHandlers<EagerGestureRecognizer>(
+                    EagerGestureRecognizer.new,
+                    (_) {},
+                  ),
+            },
+            child: Listener(
+              behavior: HitTestBehavior.opaque,
+              onPointerDown: (d) {
+                if (drawingPointer != null) return;
+                drawingPointer = d.pointer;
+                begin(d.localPosition, scale);
+              },
+              onPointerMove: (d) {
+                if (drawingPointer == d.pointer) {
+                  move(d.localPosition, scale);
+                }
+              },
+              onPointerUp: (d) {
+                if (drawingPointer == d.pointer) {
+                  drawingPointer = null;
+                  drawingAccepted = false;
+                }
+              },
+              onPointerCancel: (d) {
+                if (drawingPointer == d.pointer) {
+                  drawingPointer = null;
+                  drawingAccepted = false;
+                }
+              },
+              child: FittedBox(
+                fit: BoxFit.fill,
+                child: SizedBox(
+                  width: 900,
+                  height: 900,
+                  child: CustomPaint(painter: DrawingPainter(strokes)),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+  );
+
+  Widget colorMenu() => PopupMenuButton<Color>(
+    tooltip: '画笔颜色',
+    icon: Icon(Icons.circle, color: color),
+    onSelected: (c) => setState(() {
+      color = c;
+      eraser = false;
+    }),
+    itemBuilder: (_) => [
+      for (final c in [
+        Colors.black,
+        Colors.red,
+        Colors.orange,
+        Colors.green,
+        Colors.blue,
+        Colors.purple,
+      ])
+        PopupMenuItem(
+          value: c,
+          child: Row(
+            children: [
+              Icon(Icons.circle, color: c),
+              const SizedBox(width: 12),
+              Text(
+                '#${(c.toARGB32() & 0xffffff).toRadixString(16).padLeft(6, '0').toUpperCase()}',
+              ),
+            ],
+          ),
+        ),
+    ],
+  );
+
+  Widget editingTools() => Wrap(
+    alignment: WrapAlignment.center,
+    children: [
+      colorMenu(),
+      IconButton(
+        tooltip: '橡皮',
+        onPressed: busy ? null : () => setState(() => eraser = !eraser),
+        icon: Icon(
+          Icons.cleaning_services,
+          color: eraser ? Theme.of(context).colorScheme.primary : null,
+        ),
+      ),
+      IconButton(
+        tooltip: '撤销',
+        onPressed: busy || strokes.isEmpty
+            ? null
+            : () => setState(() {
+                redo.add(strokes.removeLast());
+                dirty = true;
+              }),
+        icon: const Icon(Icons.undo),
+      ),
+      IconButton(
+        tooltip: '重做',
+        onPressed: busy || redo.isEmpty
+            ? null
+            : () => setState(() {
+                strokes.add(redo.removeLast());
+                dirty = true;
+              }),
+        icon: const Icon(Icons.redo),
+      ),
+      IconButton(
+        tooltip: '清空画布',
+        onPressed: busy ? null : clear,
+        icon: const Icon(Icons.delete_outline),
+      ),
+      IconButton(
+        tooltip: '导出 PNG',
+        onPressed: busy ? null : export,
+        icon: const Icon(Icons.save_alt),
+      ),
+    ],
+  );
+
   @override
   Widget build(BuildContext context) => Workbench(
     tool: widget.tool,
     state: widget.state,
     dirty: dirty,
+    blocked: busy,
     onExport: export,
+    hideAppBar: fullScreen,
+    onBack: fullScreen ? () => setState(() => fullScreen = false) : null,
+    actions: [
+      IconButton(
+        tooltip: '全屏画板',
+        icon: const Icon(Icons.fullscreen),
+        onPressed: busy ? null : () => setState(() => fullScreen = true),
+      ),
+    ],
+    body: fullScreen
+        ? SafeArea(
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        tooltip: '退出全屏',
+                        onPressed: () => setState(() => fullScreen = false),
+                        icon: const Icon(Icons.fullscreen_exit),
+                      ),
+                      Text(
+                        '画板',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const Spacer(),
+                      Text('${eraser ? '橡皮' : '画笔'} ${width.round()}'),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: Center(
+                    child: LayoutBuilder(
+                      builder: (_, box) {
+                        final side = box.maxWidth < box.maxHeight
+                            ? box.maxWidth
+                            : box.maxHeight;
+                        return SizedBox(
+                          width: side,
+                          height: side,
+                          child: drawingCanvas(),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                Material(
+                  color: Theme.of(context).colorScheme.surfaceContainerLow,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      editingTools(),
+                      SizedBox(
+                        height: 36,
+                        child: Slider(
+                          value: width,
+                          min: 1,
+                          max: 60,
+                          onChanged: busy
+                              ? null
+                              : (v) => setState(() => width = v),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          )
+        : null,
     children: [
       const Text('画布不会自动保存。需要保留时请导出 PNG。'),
-      Wrap(
-        spacing: 8,
-        children: [
-          for (final c in [
-            Colors.black,
-            Colors.red,
-            Colors.orange,
-            Colors.green,
-            Colors.blue,
-            Colors.purple,
-          ])
-            IconButton(
-              tooltip: '画笔颜色 ${c.toARGB32().toRadixString(16)}',
-              onPressed: () => setState(() {
-                color = c;
-                eraser = false;
-              }),
-              icon: Icon(
-                color == c && !eraser ? Icons.check_circle : Icons.circle,
-                color: c,
-              ),
-            ),
-          IconButton(
-            tooltip: '橡皮',
-            onPressed: () => setState(() => eraser = !eraser),
-            icon: Icon(
-              Icons.cleaning_services,
-              color: eraser ? Theme.of(context).colorScheme.primary : null,
-            ),
-          ),
-          IconButton(
-            tooltip: '撤销',
-            onPressed: strokes.isEmpty
-                ? null
-                : () => setState(() {
-                    redo.add(strokes.removeLast());
-                    dirty = true;
-                  }),
-            icon: const Icon(Icons.undo),
-          ),
-          IconButton(
-            tooltip: '重做',
-            onPressed: redo.isEmpty
-                ? null
-                : () => setState(() {
-                    strokes.add(redo.removeLast());
-                    dirty = true;
-                  }),
-            icon: const Icon(Icons.redo),
-          ),
-          IconButton(
-            tooltip: '清空画布',
-            onPressed: clear,
-            icon: const Icon(Icons.delete_outline),
-          ),
-        ],
-      ),
+      const SizedBox(height: 12),
+      editingTools(),
       Text('${eraser ? '橡皮' : '画笔'}粗细 ${width.round()}'),
       Slider(
         value: width,
         min: 1,
         max: 60,
-        onChanged: (v) => setState(() => width = v),
+        onChanged: busy ? null : (v) => setState(() => width = v),
       ),
-      LayoutBuilder(
-        builder: (c, b) {
-          final scale = b.maxWidth / 900;
-          return AspectRatio(
-            aspectRatio: 1,
-            child: ClipRect(
-              child: RawGestureDetector(
-                // Claim canvas touches before the surrounding vertical list.
-                gestures: {
-                  EagerGestureRecognizer:
-                      GestureRecognizerFactoryWithHandlers<
-                        EagerGestureRecognizer
-                      >(EagerGestureRecognizer.new, (_) {}),
-                },
-                child: Listener(
-                  behavior: HitTestBehavior.opaque,
-                  onPointerDown: (d) {
-                    if (drawingPointer != null) return;
-                    drawingPointer = d.pointer;
-                    begin(d.localPosition, scale);
-                  },
-                  onPointerMove: (d) {
-                    if (drawingPointer == d.pointer) {
-                      move(d.localPosition, scale);
-                    }
-                  },
-                  onPointerUp: (d) {
-                    if (drawingPointer == d.pointer) {
-                      drawingPointer = null;
-                      drawingAccepted = false;
-                    }
-                  },
-                  onPointerCancel: (d) {
-                    if (drawingPointer == d.pointer) {
-                      drawingPointer = null;
-                      drawingAccepted = false;
-                    }
-                  },
-                  child: FittedBox(
-                    fit: BoxFit.fill,
-                    child: SizedBox(
-                      width: 900,
-                      height: 900,
-                      child: CustomPaint(painter: DrawingPainter(strokes)),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
-      ),
+      drawingCanvas(),
       const SizedBox(height: 12),
       FilledButton.icon(
         onPressed: busy ? null : export,

@@ -12,6 +12,7 @@ import '../features/sensor_page.dart';
 import '../features/ruler_page.dart';
 import '../features/media_page.dart';
 import '../features/analysis_page.dart';
+import '../features/image_tools_hub.dart';
 
 class SaiApp extends StatelessWidget {
   const SaiApp({super.key, required this.state});
@@ -94,7 +95,8 @@ class _HomeShellState extends State<HomeShell> {
           'A06' ||
           'A07' => SensorPage(tool: tool, state: widget.state),
           'A08' => RulerPage(tool: tool, state: widget.state),
-          'A09' || 'A10' => MediaPage(tool: tool, state: widget.state),
+          'A09' => ImageToolsHub(tool: tool, state: widget.state),
+          'A10' => MediaPage(tool: tool, state: widget.state),
           'N06' || 'N07' => AnalysisPage(tool: tool, state: widget.state),
           _ =>
             tool.pdf
@@ -380,16 +382,16 @@ class _HomeShellState extends State<HomeShell> {
         onTap: () => showLicensePage(
           context: context,
           applicationName: 'SaiSuite · 赛赛工具箱',
-          applicationVersion: '1.1.1',
+          applicationVersion: '1.2.0',
         ),
       ),
       AboutListTile(
         applicationName: 'SaiSuite · 赛赛工具箱',
-        applicationVersion: '1.1.1',
+        applicationVersion: '1.2.0',
         applicationLegalese: '本地处理 · 无账号 · 无上传',
         aboutBoxChildren: [
           Text(
-            '${tools.length} 个工具：PDF、日常计算、创作、设备、科研、日期与电化学。\nPDF、媒体和设备原生能力在 Android 版提供。',
+            '${tools.length} 个工具：PDF、日常计算、创作、设备、科研与日期。\nPDF、媒体和设备原生能力在 Android 版提供。',
           ),
         ],
       ),

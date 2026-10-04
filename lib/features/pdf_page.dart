@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:archive/archive.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -74,6 +75,7 @@ class _PdfPageState extends State<PdfPage> {
       position = 'center';
   int rotation = 90;
   double dpi = 144, opacity = .25, markSize = 24;
+  bool imageWatermark = false;
   bool get imageMode => widget.tool.id == 'P06';
   PdfInput? get current => inputs.firstOrNull;
   @override
@@ -331,10 +333,16 @@ class _PdfPageState extends State<PdfPage> {
           });
         }
       case 'P08':
+        if (imageWatermark && watermarkImage == null) {
+          throw const FormatException('请选择水印图片');
+        }
+        if (!imageWatermark && watermark.text.trim().isEmpty) {
+          throw const FormatException('请输入水印文字');
+        }
         await add('watermark', {
           ...base,
           'text': watermark.text,
-          'image': watermarkImage,
+          'image': imageWatermark ? watermarkImage : null,
           'opacity': opacity,
           'size': markSize,
           'position': position,
@@ -471,6 +479,156 @@ class _PdfPageState extends State<PdfPage> {
       },
     ),
   );
+  Future<void> pickWatermark() => guarded(() async {
+    final file = await FilePicker.pickFile(type: FileType.image);
+    if (file == null) return;
+    final path = await Files.localCopy(file);
+    if (mounted) setState(() => watermarkImage = path);
+  });
+
+  Widget watermarkSettings() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const SizedBox(height: 16),
+      Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('水印内容', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 6),
+              const Text('文字或图片，选择一种即可。'),
+              const SizedBox(height: 16),
+              SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(
+                    value: false,
+                    icon: Icon(Icons.text_fields),
+                    label: Text('文字'),
+                  ),
+                  ButtonSegment(
+                    value: true,
+                    icon: Icon(Icons.image_outlined),
+                    label: Text('图片'),
+                  ),
+                ],
+                selected: {imageWatermark},
+                onSelectionChanged: busy
+                    ? null
+                    : (s) => setState(() => imageWatermark = s.first),
+              ),
+              const SizedBox(height: 16),
+              if (!imageWatermark)
+                TextField(
+                  controller: watermark,
+                  enabled: !busy,
+                  maxLength: 128,
+                  decoration: const InputDecoration(
+                    labelText: '水印文字',
+                    hintText: '例如：仅供内部使用',
+                  ),
+                )
+              else ...[
+                if (watermarkImage != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Image.file(
+                      File(watermarkImage!),
+                      height: 80,
+                      cacheWidth: 320,
+                      errorBuilder: (_, _, _) => const Text('图片预览失败，请重新选择'),
+                    ),
+                  ),
+                OutlinedButton.icon(
+                  onPressed: busy ? null : pickWatermark,
+                  icon: const Icon(Icons.add_photo_alternate_outlined),
+                  label: Text(watermarkImage == null ? '选择水印图片' : '更换水印图片'),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      const SizedBox(height: 16),
+      Card(
+        margin: EdgeInsets.zero,
+        child: ExpansionTile(
+          title: const Text('位置与样式'),
+          subtitle: Text(
+            '${position == 'top'
+                ? '顶部'
+                : position == 'bottom'
+                ? '底部'
+                : '居中'} · 透明度 ${(opacity * 100).round()}% · 大小 ${markSize.round()} pt',
+          ),
+          childrenPadding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          children: [
+            DropdownButtonFormField<String>(
+              initialValue: position,
+              decoration: const InputDecoration(labelText: '水印位置'),
+              items: const [
+                DropdownMenuItem(value: 'center', child: Text('居中')),
+                DropdownMenuItem(value: 'top', child: Text('顶部')),
+                DropdownMenuItem(value: 'bottom', child: Text('底部')),
+              ],
+              onChanged: busy ? null : (s) => setState(() => position = s!),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('透明度'),
+                Text('${(opacity * 100).round()}%'),
+              ],
+            ),
+            Slider(
+              value: opacity,
+              min: .05,
+              max: 1,
+              onChanged: busy ? null : (v) => setState(() => opacity = v),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [const Text('水印大小'), Text('${markSize.round()} pt')],
+            ),
+            Slider(
+              value: markSize,
+              min: 8,
+              max: 96,
+              onChanged: busy ? null : (v) => setState(() => markSize = v),
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 16),
+      Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('应用页面', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 12),
+              TextField(
+                controller: pageRange,
+                enabled: !busy,
+                decoration: const InputDecoration(
+                  labelText: '页面范围',
+                  hintText: '1,3-5；留空为全部',
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      const SizedBox(height: 16),
+    ],
+  );
+
   @override
   Widget build(BuildContext context) => PopScope(
     canPop: !busy,
@@ -492,7 +650,7 @@ class _PdfPageState extends State<PdfPage> {
           ),
         ],
       ),
-      body: !Platform.isAndroid
+      body: defaultTargetPlatform != TargetPlatform.android
           ? const Center(child: Text('PDF 工作台在 Android 版提供。'))
           : Center(
               child: ConstrainedBox(
@@ -588,7 +746,7 @@ class _PdfPageState extends State<PdfPage> {
                       ),
                       if (widget.tool.id != 'P04')
                         SizedBox(
-                          height: 200,
+                          height: widget.tool.id == 'P08' ? 120 : 200,
                           child: FutureBuilder<String>(
                             future: preview(0),
                             builder: (c, s) => s.hasData
@@ -622,7 +780,6 @@ class _PdfPageState extends State<PdfPage> {
                         'P03',
                         'P05',
                         'P07',
-                        'P08',
                         'P11',
                       ].contains(widget.tool.id))
                         Padding(
@@ -691,64 +848,7 @@ class _PdfPageState extends State<PdfPage> {
                         onChanged: busy ? null : (v) => setState(() => dpi = v),
                       ),
                     ],
-                    if (widget.tool.id == 'P08') ...[
-                      TextField(
-                        controller: watermark,
-                        decoration: const InputDecoration(
-                          labelText: '文字水印（最多 128 字符）',
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      OutlinedButton.icon(
-                        onPressed: busy
-                            ? null
-                            : () => guarded(() async {
-                                final file = await FilePicker.pickFile(
-                                  type: FileType.image,
-                                );
-                                if (file != null) {
-                                  final path = await Files.localCopy(file);
-                                  if (mounted) {
-                                    setState(() => watermarkImage = path);
-                                  }
-                                }
-                              }),
-                        icon: const Icon(Icons.image_outlined),
-                        label: Text(
-                          watermarkImage == null ? '或选择图片水印' : '已选图片水印',
-                        ),
-                      ),
-                      if (watermarkImage != null)
-                        TextButton(
-                          onPressed: () =>
-                              setState(() => watermarkImage = null),
-                          child: const Text('改用文字'),
-                        ),
-                      dropdown(
-                        '位置',
-                        ['center', 'top', 'bottom'],
-                        position,
-                        (v) => position = v,
-                      ),
-                      Text('透明度 ${(opacity * 100).round()}%'),
-                      Slider(
-                        value: opacity,
-                        min: .05,
-                        max: 1,
-                        onChanged: busy
-                            ? null
-                            : (v) => setState(() => opacity = v),
-                      ),
-                      Text('大小 ${markSize.round()} pt'),
-                      Slider(
-                        value: markSize,
-                        min: 8,
-                        max: 96,
-                        onChanged: busy
-                            ? null
-                            : (v) => setState(() => markSize = v),
-                      ),
-                    ],
+                    if (widget.tool.id == 'P08') watermarkSettings(),
                     if (widget.tool.id == 'P09')
                       TextField(
                         controller: newPassword,

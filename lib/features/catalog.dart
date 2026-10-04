@@ -50,24 +50,25 @@ class ToolSpec {
   final List<ToolField> fields;
   bool get pdf => id.startsWith('P');
   Map<String, String> get defaults => {for (final f in fields) f.name: f.value};
-  bool matches(String query) => '$name $description $aliases $id $category'
-      .toLowerCase()
-      .contains(query.toLowerCase());
+  bool matches(String query) =>
+      '$name $description $aliases $id $category ${category == '科研' ? '电化学 实验' : ''}'
+          .toLowerCase()
+          .contains(query.toLowerCase());
 }
 
 final tools = <ToolSpec>[
-  const ToolSpec('N06', '循环数据分析', '电化学', '列映射、效率、保持率与平行样对比', Icons.show_chart),
+  const ToolSpec('N06', '循环数据分析', '科研', '列映射、效率、保持率与平行样对比', Icons.show_chart),
   const ToolSpec(
     'N07',
     '锂金属测试分析',
-    '电化学',
+    '科研',
     'Li‖Cu效率与Li‖Li极化对比',
     Icons.multiline_chart,
   ),
   ToolSpec(
     'N01',
     '电解液配方',
-    '电化学',
+    '科研',
     '多盐、多添加剂称量与实际称量反算',
     Icons.science_outlined,
     fields: [
@@ -93,7 +94,7 @@ final tools = <ToolSpec>[
   ToolSpec(
     'N02',
     '梯度配方',
-    '电化学',
+    '科研',
     '盐浓度与添加剂含量的组合称量表',
     Icons.table_chart_outlined,
     fields: [
@@ -112,7 +113,7 @@ final tools = <ToolSpec>[
   ToolSpec(
     'N03',
     '装电池备料',
-    '电化学',
+    '科研',
     '电解液与电极、隔膜、壳体用量',
     Icons.inventory_2_outlined,
     fields: [
@@ -130,7 +131,7 @@ final tools = <ToolSpec>[
   ToolSpec(
     'N04',
     '测试参数换算',
-    '电化学',
+    '科研',
     '面电流、面容量与仪器设定',
     Icons.speed,
     fields: [
@@ -144,7 +145,7 @@ final tools = <ToolSpec>[
   ToolSpec(
     'N05',
     '电解液电导率',
-    '电化学',
+    '科研',
     '实测体相电阻与电导池常数换算',
     Icons.bolt_outlined,
     fields: [
@@ -157,7 +158,7 @@ final tools = <ToolSpec>[
     ],
     hint: '使用匹配测试结构的体相电阻与电导池常数，不能用整电池总阻抗替代；输入来自你核对的实测条件。不自动保存检测记录。',
   ),
-  const ToolSpec('A09', '图片工具', '创作', '裁剪、缩放、拼图、压缩和水印', Icons.photo_outlined),
+  const ToolSpec('A09', '图片工具', '创作', '单张处理与多张拼图，分开操作', Icons.photo_outlined),
   const ToolSpec('A10', '视频工具', '创作', '截取、静音、截帧和压缩', Icons.movie_outlined),
   const ToolSpec('A05', '指南针', '设备', '磁北方向与方位角', Icons.explore_outlined),
   const ToolSpec('A06', '水平仪', '设备', '双轴倾角与气泡水平', Icons.align_vertical_center),
@@ -167,7 +168,7 @@ final tools = <ToolSpec>[
     'A01',
     '配色助手',
     '创作',
-    '互补色、类似色与三色组合',
+    '五色预设、随机灵感与配色组合',
     Icons.palette,
     aliases: '色卡 色彩搭配',
   ),
@@ -175,7 +176,7 @@ final tools = <ToolSpec>[
     'A02',
     '图片取色器',
     '创作',
-    '放大图片，点选原图像素',
+    '圆环定位与像素放大取色',
     Icons.colorize,
     aliases: '取色 HEX RGB',
   ),
@@ -191,7 +192,7 @@ final tools = <ToolSpec>[
     'A04',
     '画板',
     '创作',
-    '画笔、橡皮、撤销与 PNG 导出',
+    '画笔、全屏、撤销与 PNG 导出',
     Icons.draw_outlined,
     aliases: '绘画 涂鸦',
   ),
@@ -307,7 +308,7 @@ final tools = <ToolSpec>[
     '安全随机，多种字符组合',
     Icons.password,
     fields: [
-      numField('长度', '20'),
+      numField('长度', '14'),
       toggle('小写'),
       toggle('大写'),
       toggle('数字'),
@@ -352,6 +353,16 @@ final tools = <ToolSpec>[
       toggle('去重复行'),
       choice('排序', ['不排序', '升序', '降序']),
     ],
+  ),
+  ToolSpec(
+    'T09',
+    '中英数字空格清理',
+    '文本开发',
+    '只去除中文与英文、数字之间的空格',
+    Icons.space_bar,
+    fields: [textField('文本', '电池 A 的容量为 3 mAh，cycle 1 保持不变。', multi: true)],
+    hint: '仅移除中文与英文字母、数字交界处的空格或制表符；保留换行、中文之间及英文内部的空格。',
+    aliases: '中文 英文 数字 空格 排版',
   ),
   ToolSpec(
     'T03',
@@ -544,7 +555,7 @@ final tools = <ToolSpec>[
   ToolSpec(
     'EC01',
     '电极面积',
-    '电化学',
+    '科研',
     '圆片、矩形、环形',
     Icons.crop,
     fields: [
@@ -559,7 +570,7 @@ final tools = <ToolSpec>[
   ToolSpec(
     'EC02',
     '电流与容量归一化',
-    '电化学',
+    '科研',
     '质量与面积口径明确',
     Icons.straighten,
     fields: [
@@ -572,7 +583,7 @@ final tools = <ToolSpec>[
   ToolSpec(
     'EC03',
     '理论比容量',
-    '电化学',
+    '科研',
     '由反应电子数计算',
     Icons.functions,
     fields: [textField('化学式', 'LiFePO4'), numField('电子转移数', '1')],
@@ -580,7 +591,7 @@ final tools = <ToolSpec>[
   ToolSpec(
     'EC04',
     'N/P 配平',
-    '电化学',
+    '科研',
     '面容量比与有效总容量比',
     Icons.balance,
     fields: [
@@ -596,7 +607,7 @@ final tools = <ToolSpec>[
   ToolSpec(
     'EC05',
     '浆料配方',
-    '电化学',
+    '科研',
     '干固体、溶液与固含量',
     Icons.blender_outlined,
     fields: [
@@ -611,7 +622,7 @@ final tools = <ToolSpec>[
   ToolSpec(
     'EC08',
     '电解液用量',
-    '电化学',
+    '科研',
     'E/C 与 E/S',
     Icons.local_drink_outlined,
     fields: [
@@ -625,7 +636,7 @@ final tools = <ToolSpec>[
   ToolSpec(
     'EC09',
     '混合溶剂配比',
-    '电化学',
+    '科研',
     '按质量或体积比例分配',
     Icons.tune,
     fields: [
@@ -638,7 +649,7 @@ final tools = <ToolSpec>[
   ToolSpec(
     'EC14',
     '参比电位换算',
-    '电化学',
+    '科研',
     '自定义参比偏移与 RHE',
     Icons.electrical_services,
     fields: [
@@ -654,7 +665,7 @@ final tools = <ToolSpec>[
   ToolSpec(
     'EC16',
     'iR 校正',
-    '电化学',
+    '科研',
     '扣除剩余未补偿压降',
     Icons.show_chart,
     fields: [
@@ -667,7 +678,7 @@ final tools = <ToolSpec>[
   ToolSpec(
     'EC21',
     '电流积分与容量',
-    '电化学',
+    '科研',
     '导入时间—电流 CSV',
     Icons.area_chart_outlined,
     fields: [
@@ -691,4 +702,4 @@ const timezones = [
   'Australia/Sydney',
   'Pacific/Auckland',
 ];
-const categories = ['全部', 'PDF', '计算', '文本开发', '科研', '日期时间', '电化学', '创作', '设备'];
+const categories = ['全部', 'PDF', '计算', '文本开发', '科研', '日期时间', '创作', '设备'];

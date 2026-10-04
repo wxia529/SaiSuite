@@ -10,10 +10,18 @@ import '../core/files.dart';
 import 'catalog.dart';
 import 'workbench.dart';
 
+enum ImageAction { transform, resize, watermark, collage }
+
 class MediaPage extends StatefulWidget {
-  const MediaPage({super.key, required this.tool, required this.state});
+  const MediaPage({
+    super.key,
+    required this.tool,
+    required this.state,
+    this.imageAction = ImageAction.transform,
+  });
   final ToolSpec tool;
   final AppState state;
+  final ImageAction imageAction;
   @override
   State<MediaPage> createState() => _MediaPageState();
 }
@@ -46,6 +54,7 @@ class _MediaPageState extends State<MediaPage> {
   int rotation = 0, progress = -1;
   Timer? poll;
   bool get video => widget.tool.id == 'A10';
+  bool get collage => widget.imageAction == ImageAction.collage;
   @override
   void dispose() {
     poll?.cancel();
@@ -115,9 +124,14 @@ class _MediaPageState extends State<MediaPage> {
     await guard(() async {
       final files = video
           ? [?await FilePicker.pickFile(type: FileType.video)]
-          : await FilePicker.pickFiles(type: FileType.image);
+          : collage
+          ? await FilePicker.pickFiles(type: FileType.image)
+          : [?await FilePicker.pickFile(type: FileType.image)];
       if (files.isEmpty) return;
       if (files.length > 9) throw const FormatException('拼图最多 9 张图片');
+      if (collage && files.length < 2) {
+        throw const FormatException('拼图请选择 2—9 张图片');
+      }
       final next = <String>[];
       for (final file in files) {
         next.add(
@@ -137,6 +151,16 @@ class _MediaPageState extends State<MediaPage> {
         metadata = await channel.invokeMapMethod('imageInfo', {
           'path': next.first,
         });
+        if (widget.imageAction != ImageAction.resize && !collage) {
+          final orientation = metadata?['orientation'];
+          final width =
+              metadata?[orientation is num && orientation >= 5
+                  ? 'height'
+                  : 'width'];
+          if (width is num) {
+            fields['输出宽度 px']!.text = '${width.clamp(16, 4096).toInt()}';
+          }
+        }
       }
       if (mounted) {
         setState(() {
@@ -188,21 +212,36 @@ class _MediaPageState extends State<MediaPage> {
           });
         }
       } else {
+        if (widget.imageAction == ImageAction.watermark &&
+            fields['文字水印']!.text.trim().isEmpty) {
+          throw const FormatException('请输入水印文字');
+        }
         next = await channel.invokeMapMethod('imageProcess', {
           'paths': paths,
           'width': numeric('输出宽度 px', min: 16, max: 4096).round(),
           'crop': [
-            numeric('裁剪 X%', max: 100),
-            numeric('裁剪 Y%', max: 100),
-            numeric('裁剪宽度%', min: .01, max: 100),
-            numeric('裁剪高度%', min: .01, max: 100),
+            if (widget.imageAction == ImageAction.transform) ...[
+              numeric('裁剪 X%', max: 100),
+              numeric('裁剪 Y%', max: 100),
+              numeric('裁剪宽度%', min: .01, max: 100),
+              numeric('裁剪高度%', min: .01, max: 100),
+            ] else ...[
+              0,
+              0,
+              100,
+              100,
+            ],
           ],
-          'rotation': rotation,
-          'flip': flip,
+          'rotation': widget.imageAction == ImageAction.transform
+              ? rotation
+              : 0,
+          'flip': widget.imageAction == ImageAction.transform && flip,
           'layout': layout,
           'format': format,
           'quality': quality.round(),
-          'watermark': fields['文字水印']!.text,
+          'watermark': widget.imageAction == ImageAction.watermark
+              ? fields['文字水印']!.text
+              : '',
         });
       }
       if (next == null) throw const FormatException('处理没有产生文件');
@@ -238,6 +277,7 @@ class _MediaPageState extends State<MediaPage> {
     child: TextField(
       controller: fields[name],
       enabled: !busy,
+      maxLength: text ? 128 : null,
       keyboardType: text
           ? TextInputType.text
           : const TextInputType.numberWithOptions(decimal: true),
@@ -279,13 +319,25 @@ class _MediaPageState extends State<MediaPage> {
       Text(
         video
             ? '本地视频处理，原件只读。输出 MP4（H.264/AAC），编码支持取决于设备；码率是目标值，输出不保证比原件更小。单文件上限 500 MB。'
-            : '选择一张图片进行裁剪、旋转、缩放和水印，选择多张进行拼图。单张上限 30 MB，解码长边最多 4096 px；拼图各输入长边最多 1024 px，输出需另存。',
+            : switch (widget.imageAction) {
+                ImageAction.transform => '调整画面范围和方向。裁剪基于原图比例，处理后先预览，再另存。',
+                ImageAction.resize =>
+                  '设置输出宽度和文件格式，按比例缩放。单张上限 30 MB，输出长宽最多 4096 px。',
+                ImageAction.watermark => '选择一张图片，为它添加文字标记。原文件保持不变。',
+                ImageAction.collage => '选择 2—9 张图片，再选择排列方式。每张居中放入等大格子，可调整输出宽度。',
+              },
       ),
       const SizedBox(height: 12),
       FilledButton.icon(
         onPressed: busy ? null : pick,
         icon: const Icon(Icons.file_open),
-        label: Text(video ? '选择视频' : '选择图片（最多 9 张）'),
+        label: Text(
+          video
+              ? '选择视频'
+              : collage
+              ? '选择 2—9 张图片'
+              : '选择一张图片',
+        ),
       ),
       ...names.map((n) => Text(n)),
       if (paths.isNotEmpty && !video)
@@ -310,18 +362,7 @@ class _MediaPageState extends State<MediaPage> {
       ],
       const SizedBox(height: 16),
       if (!video) ...[
-        input('输出宽度 px'),
-        select('输出格式', format, ['JPEG', 'PNG'], (s) => format = s),
-        if (format == 'JPEG') ...[
-          Text('JPEG 质量 ${quality.round()}；透明区域填白'),
-          Slider(
-            value: quality,
-            min: 1,
-            max: 100,
-            onChanged: busy ? null : (v) => setState(() => quality = v),
-          ),
-        ],
-        if (paths.length <= 1) ...[
+        if (widget.imageAction == ImageAction.transform) ...[
           for (final key in ['裁剪 X%', '裁剪 Y%', '裁剪宽度%', '裁剪高度%']) input(key),
           select('顺时针旋转', '$rotation', [
             '0',
@@ -334,9 +375,35 @@ class _MediaPageState extends State<MediaPage> {
             value: flip,
             onChanged: busy ? null : (v) => setState(() => flip = v),
           ),
-        ] else
+        ],
+        if (collage)
           select('拼图排列', layout, ['网格', '横向', '竖向'], (s) => layout = s),
-        input('文字水印', text: true),
+        if (widget.imageAction == ImageAction.watermark)
+          input('文字水印', text: true),
+        if (widget.imageAction == ImageAction.resize || collage)
+          input('输出宽度 px'),
+        Card(
+          child: ExpansionTile(
+            initiallyExpanded: widget.imageAction == ImageAction.resize,
+            title: const Text('导出设置'),
+            subtitle: Text(
+              '$format · ${format == 'JPEG' ? '质量 ${quality.round()}' : '无损输出'}',
+            ),
+            childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            children: [
+              select('输出格式', format, ['JPEG', 'PNG'], (s) => format = s),
+              if (format == 'JPEG') ...[
+                Text('JPEG 质量 ${quality.round()}；透明区域填白'),
+                Slider(
+                  value: quality,
+                  min: 1,
+                  max: 100,
+                  onChanged: busy ? null : (v) => setState(() => quality = v),
+                ),
+              ],
+            ],
+          ),
+        ),
       ] else ...[
         input('开始时间 s'),
         input('结束时间 s'),

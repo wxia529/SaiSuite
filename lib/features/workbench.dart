@@ -13,6 +13,10 @@ class Workbench extends StatefulWidget {
     this.dirty = false,
     this.onExport,
     this.blocked = false,
+    this.body,
+    this.actions = const [],
+    this.hideAppBar = false,
+    this.onBack,
   });
   final ToolSpec tool;
   final AppState state;
@@ -20,6 +24,10 @@ class Workbench extends StatefulWidget {
   final bool dirty;
   final Future<void> Function()? onExport;
   final bool blocked;
+  final Widget? body;
+  final List<Widget> actions;
+  final bool hideAppBar;
+  final VoidCallback? onBack;
   @override
   State<Workbench> createState() => _WorkbenchState();
 }
@@ -63,43 +71,53 @@ class _WorkbenchState extends State<Workbench> {
 
   @override
   Widget build(BuildContext context) => PopScope(
-    canPop: !widget.blocked && (!widget.dirty || allowExit),
+    canPop:
+        widget.onBack == null &&
+        !widget.blocked &&
+        (!widget.dirty || allowExit),
     onPopInvokedWithResult: (didPop, _) {
       if (!didPop) {
         if (widget.blocked) {
           message(context, '处理中，请先取消或等待完成');
+        } else if (widget.onBack != null) {
+          widget.onBack!();
         } else {
           exit();
         }
       }
     },
     child: Scaffold(
-      appBar: AppBar(
-        title: Text(widget.tool.name),
-        actions: [
-          ListenableBuilder(
-            listenable: widget.state,
-            builder: (c, _) => IconButton(
-              tooltip: '收藏',
-              onPressed: () => widget.state.star(widget.tool.id),
-              icon: Icon(
-                widget.state.favorites.contains(widget.tool.id)
-                    ? Icons.star
-                    : Icons.star_border,
+      appBar: widget.hideAppBar
+          ? null
+          : AppBar(
+              title: Text(widget.tool.name),
+              actions: [
+                ...widget.actions,
+                ListenableBuilder(
+                  listenable: widget.state,
+                  builder: (c, _) => IconButton(
+                    tooltip: '收藏',
+                    onPressed: () => widget.state.star(widget.tool.id),
+                    icon: Icon(
+                      widget.state.favorites.contains(widget.tool.id)
+                          ? Icons.star
+                          : Icons.star_border,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+      body:
+          widget.body ??
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 760),
+              child: ListView(
+                padding: const EdgeInsets.all(20),
+                children: widget.children,
               ),
             ),
           ),
-        ],
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 760),
-          child: ListView(
-            padding: const EdgeInsets.all(20),
-            children: widget.children,
-          ),
-        ),
-      ),
     ),
   );
 }

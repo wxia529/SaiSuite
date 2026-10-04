@@ -503,6 +503,8 @@ String runTool(String id, Map<String, String> p) {
         if (s('排序') == '降序') lines = lines.reversed.toList();
       }
       return lines.join('\n');
+    case 'T09':
+      return removeCjkBoundarySpaces(s('文本'));
     case 'T03':
       return textDiff(s('原文本'), s('新文本'));
     case 'T04':
@@ -858,4 +860,19 @@ String colorConvert(String format, String input) {
   String hex(double x) =>
       (x * 255).round().toRadixString(16).padLeft(2, '0').toUpperCase();
   return '#${hex(r)}${hex(g)}${hex(b)}\nRGB ${(r * 255).round()}, ${(g * 255).round()}, ${(b * 255).round()}\nHSL ${fmt(h)}, ${fmt(saturation * 100)}%, ${fmt(l * 100)}%';
+}
+
+String removeCjkBoundarySpaces(String text) {
+  const han = r'[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\u{20000}-\u{323af}]';
+  const latinOrDigit = r'[A-Za-z0-9Ａ-Ｚａ-ｚ０-９]';
+  const gap = r'[ \t\u00a0\u3000]+';
+  return text
+      .replaceAllMapped(
+        RegExp('($han)$gap(?=$latinOrDigit)', unicode: true),
+        (m) => m[1]!,
+      )
+      .replaceAllMapped(
+        RegExp('($latinOrDigit)$gap(?=$han)', unicode: true),
+        (m) => m[1]!,
+      );
 }

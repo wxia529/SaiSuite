@@ -214,14 +214,30 @@ void main() {
         ),
       ),
     );
+    await tester.scrollUntilVisible(
+      find.text('HEX').hitTestable(),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.text('HEX'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('RGB').last);
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byType(TextField));
     await tester.enterText(find.byType(TextField), '255,0,0');
     await tester.pump();
+    await tester.scrollUntilVisible(
+      find.text('#FF0000').hitTestable(),
+      -200,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('#FF0000'), findsOneWidget);
     expect(find.text('#00FFFF'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.byType(TextField).hitTestable(),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.enterText(find.byType(TextField), '256,0,0');
     await tester.pump();
     expect(find.text('RGB 范围为 0—255'), findsOneWidget);

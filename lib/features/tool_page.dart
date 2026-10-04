@@ -174,7 +174,7 @@ class _ToolPageState extends State<ToolPage> {
     if (widget.tool.id == 'C05' || widget.tool.id == 'C06') return result ?? '';
     return jsonEncode({
       'app': 'SaiSuite',
-      'version': '1.1.1',
+      'version': '1.2.0',
       'tool': widget.tool.id,
       'name': widget.tool.name,
       'createdAt': DateTime.now().toUtc().toIso8601String(),

@@ -81,7 +81,7 @@ void main() {
     final defaults = tools.firstWhere((t) => t.id == 'C05').defaults;
     for (var i = 0; i < 30; i++) {
       final password = runTool('C05', defaults);
-      expect(password.length, 20);
+      expect(password.length, 14);
       for (final regex in [r'[a-z]', r'[A-Z]', r'[0-9]', r'[^a-zA-Z0-9]']) {
         expect(RegExp(regex).hasMatch(password), isTrue);
       }
