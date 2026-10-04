@@ -1,6 +1,6 @@
 # SaiSuite · 赛赛工具箱
 
-离线 Android 工具箱，Flutter + Dart + Material 3。v1.2.0 共 **64 项工具**：原 36 个基础工具、10 个电化学扩展，加上 17 个创作、设备与电解液工具，以及中英数字空格清理。
+Android 工具箱，Flutter + Dart + Material 3。v1.2.1 共 **64 项工具**：原 36 个基础工具、10 个电化学扩展，加上 17 个创作、设备与电解液工具，以及中英数字空格清理。
 
 - PDF：合并、拆分、提取、整理、旋转、图片互转、水印、密码处理、文本提取、文档信息，共 12 项。
 - 日常计算 6 项、文本开发 9 项、基础科研计算 6 项、日期时间 4 项。
@@ -15,10 +15,10 @@
 
 | 版本 | 文件 | 大小 |
 |---|---|---:|
-| Universal（三种架构） | SaiSuite-1.2.0-universal.apk | 67.90 MiB |
-| ARM64 | SaiSuite-1.2.0-arm64-v8a.apk | 32.73 MiB |
-| ARM32 | SaiSuite-1.2.0-armeabi-v7a.apk | 30.40 MiB |
-| x86_64 | SaiSuite-1.2.0-x86_64.apk | 34.21 MiB |
+| Universal（三种架构） | SaiSuite-1.2.1-universal.apk | 67.90 MiB |
+| ARM64 | SaiSuite-1.2.1-arm64-v8a.apk | 32.73 MiB |
+| ARM32 | SaiSuite-1.2.1-armeabi-v7a.apk | 30.40 MiB |
+| x86_64 | SaiSuite-1.2.1-x86_64.apk | 34.21 MiB |
 
 按设备支持的 CPU 架构选一个安装，四种版本功能相同；不确定架构时使用 Universal。校验值在 `dist/SHA256SUMS.txt`。签名密钥与构建产物不提交到 Git。Android 包名：`io.github.wxia529.saisuite`。
 
@@ -31,7 +31,7 @@
 - [下一阶段范围](docs/NEXT_VERSION_SCOPE.md)：点按计算器、配色、计时、画板、媒体与设备工具，以及不保存实验记录的电解液计算。
 - [构建说明](docs/BUILD.md)：工具链、签名、构建与测试命令。
 - [验收记录](docs/ACCEPTANCE.md)：逐项功能矩阵、设备和验证证据。
-- [依赖与许可](docs/DEPENDENCIES.md)：PDF 原生服务、离线数据来源。
+- [依赖与许可](docs/DEPENDENCIES.md)：PDF 原生服务与数据来源。
 - [电化学后续规划](docs/ELECTROCHEMISTRY_ROADMAP.md)：其余 40 项候选保留后续排期。
 
 ## 开发

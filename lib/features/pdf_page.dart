@@ -664,7 +664,7 @@ class _PdfPageState extends State<PdfPage> {
                     ),
                     const SizedBox(height: 12),
                     const Text(
-                      '本地处理，导出新文件。最多 500 页 / 单文件 100 MB；合并最多 30 份。修改后原签名可能失效；跨文档书签、表单和批注关系不保证完整保留。',
+                      '导出新文件。最多 500 页 / 单文件 100 MB；合并最多 30 份。修改后原签名可能失效；跨文档书签、表单和批注关系不保证完整保留。',
                       style: TextStyle(fontSize: 12),
                     ),
                     const SizedBox(height: 20),

@@ -206,3 +206,23 @@
 ![全屏画板](images/v1.2-drawing.png)
 
 ![PDF 水印分区](images/v1.2-watermark.png)
+
+
+## v1.2.1 展示文案清理（2026-10-04）
+
+移除首页「离线工具」、工具数量后的「全部本地处理」、关于页面的「本地处理 · 无账号 · 无上传」、PDF 工作台的「本地处理」和视频工作台的「本地视频处理」。JSON 默认示例改用 enabled 字段，应用介绍同步调整。当前仍为 64 个工具。
+
+静态分析无问题，既有 99 项测试全部通过；本轮为展示文案调整。
+
+模拟器从 v1.2.0 x86_64 覆盖升级成功。已逐页核验首页、工具列表、PDF、视频与关于，界面层级中均未出现相关展示文案；关于版本为 1.2.1。界面证据位于 `.buildlog/1.2.1-{home,tools,pdf,video,about}.xml`。
+
+四包沿用原签名，minSdk 24、targetSdk 36。独立包各含单一 ABI，公共代码和资源与 Universal 逐项校验一致。
+
+| APK | 字节 | MiB | versionCode | SHA-256 |
+|---|---:|---:|---:|---|
+| SaiSuite-1.2.1-universal.apk | 71,196,500 | 67.90 | 6 | `b3366550ac1bd1a968fb9ee4d8cb57a09fcd5b2249c81fd8f33a1ae9760c90b7` |
+| SaiSuite-1.2.1-arm64-v8a.apk | 34,322,674 | 32.73 | 2006 | `841724f25444ec51deb228a94c30d66a9069efb0d9a24e4e5008bc827a2564db` |
+| SaiSuite-1.2.1-armeabi-v7a.apk | 31,878,846 | 30.40 | 1006 | `96ae077aa0d39eef89afe58bfa5dc073b1c785541b2e66b2078b0d935468c695` |
+| SaiSuite-1.2.1-x86_64.apk | 35,871,982 | 34.21 | 4006 | `4fb7a2dd2aac2946b0e8995501127716477330aed775a39e6eed531b95a7c0d6` |
+
+当前校验汇总为 `dist/SHA256SUMS.txt`；v1.2.0 四包与汇总 `dist/1.2.0-SHA256SUMS.txt` 保留。

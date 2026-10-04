@@ -384,7 +384,7 @@ final tools = <ToolSpec>[
     Icons.data_object,
     fields: [
       choice('模式', ['格式化', '压缩']),
-      textField('JSON', '{"name":"SaiSuite","offline":true}', multi: true),
+      textField('JSON', '{"name":"SaiSuite","enabled":true}', multi: true),
     ],
   ),
   ToolSpec(

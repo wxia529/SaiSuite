@@ -182,7 +182,7 @@ class _HomeShellState extends State<HomeShell> {
                 category = '全部';
               }),
               icon: const Icon(Icons.grid_view),
-              label: Text('浏览 ${tools.length} 个离线工具'),
+              label: Text('浏览 ${tools.length} 个工具'),
             ),
           ],
         ),
@@ -293,7 +293,7 @@ class _HomeShellState extends State<HomeShell> {
                   children: [
                     Padding(
                       padding: const EdgeInsets.all(8),
-                      child: Text('${filtered.length} 个工具 · 全部本地处理'),
+                      child: Text('${filtered.length} 个工具'),
                     ),
                     ...filtered.map(toolTile),
                   ],
@@ -382,13 +382,12 @@ class _HomeShellState extends State<HomeShell> {
         onTap: () => showLicensePage(
           context: context,
           applicationName: 'SaiSuite · 赛赛工具箱',
-          applicationVersion: '1.2.0',
+          applicationVersion: '1.2.1',
         ),
       ),
       AboutListTile(
         applicationName: 'SaiSuite · 赛赛工具箱',
-        applicationVersion: '1.2.0',
-        applicationLegalese: '本地处理 · 无账号 · 无上传',
+        applicationVersion: '1.2.1',
         aboutBoxChildren: [
           Text(
             '${tools.length} 个工具：PDF、日常计算、创作、设备、科研与日期。\nPDF、媒体和设备原生能力在 Android 版提供。',

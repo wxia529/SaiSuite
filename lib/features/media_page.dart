@@ -318,7 +318,7 @@ class _MediaPageState extends State<MediaPage> {
     children: [
       Text(
         video
-            ? '本地视频处理，原件只读。输出 MP4（H.264/AAC），编码支持取决于设备；码率是目标值，输出不保证比原件更小。单文件上限 500 MB。'
+            ? '视频处理，原件只读。输出 MP4（H.264/AAC），编码支持取决于设备；码率是目标值，输出不保证比原件更小。单文件上限 500 MB。'
             : switch (widget.imageAction) {
                 ImageAction.transform => '调整画面范围和方向。裁剪基于原图比例，处理后先预览，再另存。',
                 ImageAction.resize =>
