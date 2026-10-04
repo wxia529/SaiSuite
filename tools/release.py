@@ -11,6 +11,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from urllib.error import HTTPError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
@@ -184,18 +185,85 @@ def verify_checksums(root: Path, name: str) -> list[Path]:
     return assets + [summary]
 
 
-def github_get(repo: str, path: str):
-    req = Request(f"https://api.github.com/repos/{repo}/{path}", headers={
+def github_headers():
+    return {
         "Authorization": f"Bearer {os.environ['GH_TOKEN']}", "User-Agent": "SaiSuite-release",
         "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28",
-    })
+        "Cache-Control": "no-cache",
+    }
+
+
+def github_response(req: Request, timeout: int = 30):
     try:
-        with urlopen(req, timeout=30) as response:
-            return json.load(response)
+        with urlopen(req, timeout=timeout) as response:
+            return json.load(response) if response.status != 204 else None
     except HTTPError as error:
-        if error.code == 404:
+        if error.code == 404 and req.get_method() == "GET":
             return None
         raise ValueError(f"GitHub API request failed: HTTP {error.code}") from None
+
+
+def github_get(repo: str, path: str):
+    return github_response(Request(f"https://api.github.com/repos/{repo}/{path}", headers=github_headers()))
+
+
+def github_write(repo: str, path: str, payload=None, method: str = "POST"):
+    headers = github_headers()
+    headers["Content-Type"] = "application/json"
+    data = json.dumps(payload, ensure_ascii=False).encode("utf-8") if payload is not None else None
+    return github_response(Request(f"https://api.github.com/repos/{repo}/{path}",
+                                   data=data, headers=headers, method=method))
+
+
+def validate_draft(draft, tag: str):
+    if not isinstance(draft, dict) or draft.get("draft") is not True or draft.get("tag_name") != tag:
+        raise ValueError("Expected the matching unpublished release draft")
+    if type(draft.get("id")) is not int or draft["id"] <= 0:
+        raise ValueError("Release draft is missing a valid ID")
+
+
+def upload_assets(repo: str, draft: dict, files: list[Path]):
+    # Use the ID returned by creation, not a second lookup by tag or release list.
+    existing = {asset["name"]: asset for asset in draft.get("assets", [])}
+    for path in files:
+        previous = existing.get(path.name)
+        if previous:
+            if (previous.get("state") == "uploaded" and previous.get("size") == path.stat().st_size
+                    and previous.get("digest") == "sha256:" + digest(path)):
+                print(f"Reused verified asset {path.name}")
+                continue
+            asset_id = previous.get("id")
+            if type(asset_id) is not int or asset_id <= 0:
+                raise ValueError("Existing release asset is missing a valid ID")
+            github_write(repo, f"releases/assets/{asset_id}", method="DELETE")
+        headers = github_headers()
+        headers.update({"Content-Type": "application/octet-stream", "Content-Length": str(path.stat().st_size)})
+        url = f"https://uploads.github.com/repos/{repo}/releases/{draft['id']}/assets?name={quote(path.name, safe='')}"
+        # Stream large APKs and ZIPs; do not buffer the entire package in memory.
+        with path.open("rb") as body:
+            uploaded = github_response(Request(url, data=body, headers=headers, method="POST"), timeout=180)
+        if (not uploaded or uploaded.get("name") != path.name or uploaded.get("size") != path.stat().st_size
+                or uploaded.get("state") != "uploaded"):
+            raise ValueError(f"Release asset upload did not complete: {path.name}")
+        print(f"Uploaded {path.name}")
+
+
+def complete_draft(repo: str, release_id: int, tag: str, files: list[Path]):
+    expected = {asset.name: asset.stat().st_size for asset in files}
+    hashes = {asset.name: "sha256:" + digest(asset) for asset in files}
+    for delay in (0, 1, 2, 4):
+        if delay:
+            time.sleep(delay)
+        draft = github_get(repo, f"releases/{release_id}")
+        if draft:
+            validate_draft(draft, tag)
+            uploaded = draft.get("assets", [])
+            if ({asset["name"]: asset["size"] for asset in uploaded} == expected
+                    and len(uploaded) == len(expected)
+                    and all(asset["state"] == "uploaded" and
+                            (not asset.get("digest") or asset["digest"] == hashes[asset["name"]]) for asset in uploaded)):
+                return draft
+    raise ValueError("Draft release assets are incomplete or unexpected; leaving draft unpublished")
 
 
 def check_upgrade(current: tuple[str, int], previous_tag: str):
@@ -268,18 +336,18 @@ def publish():
     source = os.environ.get("GITHUB_SHA", "")
     verify_tag_source(repo, tag, source)
     if not existing:
-        subprocess.run(["gh", "release", "create", tag, "--verify-tag", "--draft", "--title",
-                        f"SaiSuite v{name}", "--notes-file", str(ROOT / f"docs/releases/v{name}.md")], check=True)
-        existing = find_release(repo, tag)
-    if not existing or not existing["draft"]:
-        raise ValueError("Could not locate the draft release before uploading assets")
-    subprocess.run(["gh", "release", "upload", tag, *map(str, assets), "--clobber"], check=True)
-    draft = github_get(repo, "releases/" + str(existing["id"]))
-    expected = {asset.name: asset.stat().st_size for asset in assets}
-    uploaded = {asset["name"]: asset["size"] for asset in draft["assets"]} if draft else {}
-    if not draft or not draft["draft"] or uploaded != expected or any(asset["state"] != "uploaded" for asset in draft["assets"]):
-        raise ValueError("Draft release assets are incomplete or unexpected; leaving draft unpublished")
-    subprocess.run(["gh", "release", "edit", tag, "--draft=false", "--prerelease=false", "--latest"], check=True)
+        existing = github_write(repo, "releases", {
+            "tag_name": tag, "target_commitish": source, "draft": True, "prerelease": False,
+            "name": f"SaiSuite v{name}",
+            "body": (ROOT / f"docs/releases/v{name}.md").read_text(encoding="utf-8"),
+        })
+    validate_draft(existing, tag)
+    upload_assets(repo, existing, assets)
+    complete_draft(repo, existing["id"], tag, assets)
+    published = github_write(repo, f"releases/{existing['id']}",
+                             {"draft": False, "prerelease": False, "make_latest": "true"}, method="PATCH")
+    if not published or published.get("draft") is not False or published.get("tag_name") != tag:
+        raise ValueError("GitHub did not confirm release publication")
     print(f"Published {tag} with all {len(assets)} verified assets")
 
 

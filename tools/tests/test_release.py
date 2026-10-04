@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import io
 import importlib.util
 import os
 from pathlib import Path
@@ -7,6 +8,8 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
+from urllib.error import HTTPError
+from urllib.request import Request
 
 spec = importlib.util.spec_from_file_location("release", Path(__file__).resolve().parents[1] / "release.py")
 release = importlib.util.module_from_spec(spec)
@@ -126,14 +129,17 @@ class ReleaseChecks(unittest.TestCase):
             package.write_bytes(b'windows fixture')
             package.with_suffix(package.suffix + '.sha256').write_text(f'{release.digest(package)}  {package.name}\n', encoding='ascii')
         assets = list(dist.iterdir())
-        draft = {'id': 42, 'draft': True, 'assets': [{'name': p.name, 'size': p.stat().st_size, 'state': 'uploaded'} for p in assets]}
+        draft = {'id': 42, 'tag_name': 'v1.4.0+9', 'draft': True, 'assets': [{'name': p.name, 'size': p.stat().st_size, 'state': 'uploaded'} for p in assets]}
         env = {'GH_REPO': 'wxia529/SaiSuite', 'RELEASE_TAG': 'v1.4.0+9', 'RELEASE_WINDOWS': 'true', 'GITHUB_SHA': 'a' * 40}
         ref = {'object': {'type': 'commit', 'sha': 'a' * 40}}
-        with patch.object(release, 'ROOT', self.root), patch.object(release, 'version', return_value=('1.4.0', 9)), patch.dict(os.environ, env), patch.object(release, 'find_release', side_effect=[None, draft]), patch.object(release, 'github_get', side_effect=[None, ref, draft]), patch.object(release.subprocess, 'run') as run:
+        published = {**draft, 'draft': False}
+        with patch.object(release, 'ROOT', self.root), patch.object(release, 'version', return_value=('1.4.0', 9)), patch.dict(os.environ, env), patch.object(release, 'find_release', return_value=None) as find, patch.object(release, 'github_get', side_effect=[None, ref, draft]), patch.object(release, 'github_write', side_effect=[{**draft, 'assets': []}, published]) as write, patch.object(release, 'upload_assets') as upload:
             release.publish()
-        upload = run.call_args_list[1].args[0]
-        self.assertIn(str(dist / 'SaiSuite-1.4.0-windows-x64-setup.exe'), upload)
-        self.assertIn(str(dist / 'SaiSuite-1.4.0-windows-x64.zip'), upload)
+        self.assertIn(dist / 'SaiSuite-1.4.0-windows-x64-setup.exe', upload.call_args.args[2])
+        self.assertIn(dist / 'SaiSuite-1.4.0-windows-x64.zip', upload.call_args.args[2])
+        self.assertEqual(write.call_args_list[0].args[1], 'releases')
+        self.assertEqual(write.call_args_list[1].args[1], 'releases/42')
+        find.assert_called_once()
         self.assertEqual(len(assets), 13)
 
     def make_assets(self, folder):
@@ -151,29 +157,34 @@ class ReleaseChecks(unittest.TestCase):
         dist = self.root / "dist"
         self.make_assets(dist)
         assets = release.verify_checksums(dist, "1.4.0")
-        draft = {"id": 42, "draft": True, "assets": [{"name": p.name, "size": p.stat().st_size, "state": "uploaded"} for p in assets]}
+        draft = {"id": 42, "tag_name": "v1.4.0+9", "draft": True, "assets": [{"name": p.name, "size": p.stat().st_size, "state": "uploaded"} for p in assets]}
         for complete in [False, True]:
-            response = draft if complete else {"draft": True, "assets": []}
+            response = draft if complete else {**draft, "assets": []}
             ref = {"object": {"type": "commit", "sha": "a" * 40}}
-            with patch.object(release, "ROOT", self.root), patch.object(release, "version", return_value=("1.4.0", 9)), patch.dict(os.environ, {"GH_REPO": "wxia529/SaiSuite", "RELEASE_TAG": "v1.4.0+9", "GITHUB_SHA": "a" * 40}), patch.object(release, "find_release", side_effect=[None, draft]), patch.object(release, "github_get", side_effect=[None, ref, response]) as get, patch.object(release.subprocess, "run") as run:
+            with patch.object(release, "ROOT", self.root), patch.object(release, "version", return_value=("1.4.0", 9)), patch.dict(os.environ, {"GH_REPO": "wxia529/SaiSuite", "RELEASE_TAG": "v1.4.0+9", "GITHUB_SHA": "a" * 40}), patch.object(release, "find_release", return_value=None) as find, patch.object(release, "github_get", side_effect=[None, ref] + [response] * 4) as get, patch.object(release, "github_write", side_effect=[{**draft, 'assets': []}, {**draft, 'draft': False}]) as write, patch.object(release, "upload_assets") as upload, patch.object(release.time, 'sleep'):
                 if complete:
                     release.publish()
                 else:
                     with self.assertRaisesRegex(ValueError, "incomplete"):
                         release.publish()
                 self.assertEqual(get.call_args.args[1], "releases/42")
-            commands = [call.args[0] for call in run.call_args_list]
-            self.assertIn("--draft", commands[0])
-            self.assertIn("--verify-tag", commands[0])
-            self.assertEqual(commands[1][2], "upload")
-            self.assertEqual(any("--draft=false" in command for command in commands), complete)
+            find.assert_called_once()
+            self.assertTrue(write.call_args_list[0].args[2]['draft'])
+            self.assertEqual(write.call_args_list[0].args[2]['tag_name'], 'v1.4.0+9')
+            self.assertEqual(write.call_args_list[0].args[2]['target_commitish'], 'a' * 40)
+            upload.assert_called_once()
+            self.assertEqual(write.call_count, 2 if complete else 1)
+            if complete:
+                self.assertEqual(write.call_args.kwargs['method'], 'PATCH')
+                self.assertFalse(write.call_args.args[2]['draft'])
 
     def test_public_release_cannot_be_replaced(self):
         self.make_assets(self.root / "dist")
-        with patch.object(release, "ROOT", self.root), patch.object(release, "version", return_value=("1.4.0", 9)), patch.dict(os.environ, {"GH_REPO": "wxia529/SaiSuite", "RELEASE_TAG": "v1.4.0+9"}), patch.object(release, "find_release", return_value={"draft": False}), patch.object(release.subprocess, "run") as run:
+        with patch.object(release, "ROOT", self.root), patch.object(release, "version", return_value=("1.4.0", 9)), patch.dict(os.environ, {"GH_REPO": "wxia529/SaiSuite", "RELEASE_TAG": "v1.4.0+9"}), patch.object(release, "find_release", return_value={"draft": False}), patch.object(release, "github_write") as write, patch.object(release, 'upload_assets') as upload:
             with self.assertRaisesRegex(ValueError, "already public"):
                 release.publish()
-        run.assert_not_called()
+        write.assert_not_called()
+        upload.assert_not_called()
 
     def test_draft_is_found_when_published_tag_endpoint_returns_404(self):
         draft = {"id": 42, "tag_name": "v1.4.0+9", "draft": True}
@@ -188,11 +199,80 @@ class ReleaseChecks(unittest.TestCase):
         dist = self.root / "dist"
         self.make_assets(dist)
         assets = release.verify_checksums(dist, "1.4.0")
-        draft = {"id": 42, "draft": True, "assets": [{"name": p.name, "size": p.stat().st_size, "state": "uploaded"} for p in assets]}
+        draft = {"id": 42, "tag_name": "v1.4.0+9", "draft": True, "assets": [{"name": p.name, "size": p.stat().st_size, "state": "uploaded"} for p in assets]}
         ref = {"object": {"type": "commit", "sha": "a" * 40}}
-        with patch.object(release, "ROOT", self.root), patch.object(release, "version", return_value=("1.4.0", 9)), patch.dict(os.environ, {"GH_REPO": "wxia529/SaiSuite", "RELEASE_TAG": "v1.4.0+9", "GITHUB_SHA": "a" * 40}), patch.object(release, "find_release", return_value=draft), patch.object(release, "github_get", side_effect=[None, ref, draft]), patch.object(release.subprocess, "run") as run:
+        with patch.object(release, "ROOT", self.root), patch.object(release, "version", return_value=("1.4.0", 9)), patch.dict(os.environ, {"GH_REPO": "wxia529/SaiSuite", "RELEASE_TAG": "v1.4.0+9", "GITHUB_SHA": "a" * 40}), patch.object(release, "find_release", return_value=draft), patch.object(release, "github_get", side_effect=[None, ref, draft]), patch.object(release, "github_write", return_value={**draft, 'draft': False}) as write, patch.object(release, 'upload_assets') as upload:
             release.publish()
-        self.assertEqual([call.args[0][2] for call in run.call_args_list], ["upload", "edit"])
+        upload.assert_called_once()
+        write.assert_called_once_with('wxia529/SaiSuite', 'releases/42', {'draft': False, 'prerelease': False, 'make_latest': 'true'}, method='PATCH')
+
+    def test_streamed_upload_uses_release_id_and_encoded_filename(self):
+        file = self.root / 'SaiSuite + notes.txt'
+        file.write_bytes(b'asset content')
+        draft = {'id': 42, 'assets': [{'id': 7, 'name': file.name, 'size': 1, 'state': 'uploaded'}]}
+        def uploaded(request, timeout):
+            self.assertEqual(request.full_url, 'https://uploads.github.com/repos/wxia529/SaiSuite/releases/42/assets?name=SaiSuite%20%2B%20notes.txt')
+            self.assertEqual(request.get_method(), 'POST')
+            self.assertEqual(request.get_header('Content-length'), str(file.stat().st_size))
+            self.assertTrue(hasattr(request.data, 'read'))
+            self.assertEqual(request.data.read(), b'asset content')
+            return {'name': file.name, 'size': file.stat().st_size, 'state': 'uploaded'}
+        with patch.dict(os.environ, {'GH_TOKEN': 'fake-token'}), patch.object(release, 'github_write') as write, patch.object(release, 'github_response', side_effect=uploaded):
+            release.upload_assets('wxia529/SaiSuite', draft, [file])
+        write.assert_called_once_with('wxia529/SaiSuite', 'releases/assets/7', method='DELETE')
+
+    def test_resume_reuses_only_matching_server_digest(self):
+        file = self.root / 'asset.apk'
+        file.write_bytes(b'fresh')
+        asset = {'id': 7, 'name': file.name, 'size': 5, 'state': 'uploaded', 'digest': 'sha256:' + release.digest(file)}
+        with patch.object(release, 'github_write') as write, patch.object(release, 'github_response') as response:
+            release.upload_assets('wxia529/SaiSuite', {'id': 42, 'assets': [asset]}, [file])
+        write.assert_not_called()
+        response.assert_not_called()
+        for checksum in ('sha256:' + '0' * 64, None):
+            with patch.dict(os.environ, {'GH_TOKEN': 'fake-token'}), patch.object(release, 'github_write') as write, patch.object(release, 'github_response', return_value=asset):
+                release.upload_assets('wxia529/SaiSuite', {'id': 42, 'assets': [{**asset, 'digest': checksum}]}, [file])
+            write.assert_called_once()
+
+    def test_complete_draft_waits_for_id_visibility_and_checks_digest(self):
+        file = self.root / 'asset.apk'
+        file.write_bytes(b'fixture')
+        draft = {'id': 42, 'tag_name': 'v1.4.0+9', 'draft': True, 'assets': []}
+        complete = {**draft, 'assets': [{'name': file.name, 'size': file.stat().st_size, 'state': 'uploaded', 'digest': 'sha256:' + release.digest(file)}]}
+        with patch.object(release, 'github_get', side_effect=[None, draft, complete]) as get, patch.object(release.time, 'sleep') as sleep:
+            self.assertEqual(release.complete_draft('wxia529/SaiSuite', 42, 'v1.4.0+9', [file]), complete)
+        self.assertTrue(all(call.args[1] == 'releases/42' for call in get.call_args_list))
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], [1, 2])
+        complete['assets'][0]['digest'] = 'sha256:' + '0' * 64
+        with patch.object(release, 'github_get', return_value=complete), patch.object(release.time, 'sleep'):
+            with self.assertRaisesRegex(ValueError, 'incomplete'):
+                release.complete_draft('wxia529/SaiSuite', 42, 'v1.4.0+9', [file])
+
+    def test_draft_identity_must_match_tag_and_have_numeric_id(self):
+        draft = {'id': 42, 'tag_name': 'v1.4.0+9', 'draft': True}
+        release.validate_draft(draft, 'v1.4.0+9')
+        for invalid in (None, {**draft, 'draft': False}, {**draft, 'tag_name': 'other'}, {**draft, 'id': '42'}, {**draft, 'id': True}, {**draft, 'id': 0}):
+            with self.assertRaises(ValueError):
+                release.validate_draft(invalid, 'v1.4.0+9')
+
+    def test_json_write_preserves_release_notes_and_http_method(self):
+        body = {'tag_name': 'v1.4.0+9', 'draft': True, 'body': '中文\nsecond line'}
+        with patch.dict(os.environ, {'GH_TOKEN': 'fake-token'}), patch.object(release, 'github_response', return_value={'id': 42}) as response:
+            self.assertEqual(release.github_write('wxia529/SaiSuite', 'releases', body), {'id': 42})
+        request = response.call_args.args[0]
+        self.assertEqual(request.get_method(), 'POST')
+        self.assertEqual(release.json.loads(request.data), body)
+
+    def test_no_content_delete_and_write_404_are_handled_correctly(self):
+        response = io.BytesIO(b'')
+        response.status = 204
+        with patch.object(release, 'urlopen', return_value=response):
+            self.assertIsNone(release.github_response(Request('https://api.github.com/example', method='DELETE')))
+        error = HTTPError('https://api.github.com/example', 404, 'Not found', {}, None)
+        with patch.object(release, 'urlopen', side_effect=error):
+            self.assertIsNone(release.github_response(Request('https://api.github.com/example')))
+            with self.assertRaisesRegex(ValueError, 'HTTP 404'):
+                release.github_response(Request('https://api.github.com/example', method='POST'))
 
     def test_duplicate_publication_is_skipped_but_drafts_can_resume(self):
         for response, expected in [(None, False), ({"draft": True}, False), ({"draft": False}, True)]:
