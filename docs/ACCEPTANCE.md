@@ -86,7 +86,7 @@
 
 ## 最终安装包
 
-- 路径：`dist/SaiSuite-1.0.0.apk`，66,880,506 字节，约 63.8 MiB。
+- 路径：`dist/SaiSuite-1.0.0-universal.apk`，66,880,506 字节，约 63.8 MiB。
 - 版本：`1.0.0`，versionCode `2`；包名 `io.github.wxia529.saisuite`。
 - SHA-256：`91b1a710168e7233232dd8c90ee036e5bc1ed96f3c1bbe8bcb8d19bfff6d90ba`。
 - `apksigner verify --verbose`：通过，APK Signature Scheme v2，1 个签名者。

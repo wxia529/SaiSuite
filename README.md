@@ -11,7 +11,7 @@
 
 | 版本 | 文件 | 大小 |
 |---|---|---:|
-| Universal（三种架构） | SaiSuite-1.0.0.apk | 63.78 MiB |
+| Universal（三种架构） | SaiSuite-1.0.0-universal.apk | 63.78 MiB |
 | ARM64 | SaiSuite-1.0.0-arm64-v8a.apk | 29.79 MiB |
 | ARM32 | SaiSuite-1.0.0-armeabi-v7a.apk | 27.35 MiB |
 | x86_64 | SaiSuite-1.0.0-x86_64.apk | 31.20 MiB |

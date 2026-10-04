@@ -46,7 +46,7 @@ flutter build apk --release
 
 最后一步不要在刚运行过设备集成测试后直接加 `--no-pub`：测试入口曾导致生成的插件注册文件包含 integration_test，而 release 不编译该测试插件。正常依赖准备会重新生成正确注册文件。
 
-APK 输出 `build/app/outputs/flutter-apk/app-release.apk`，交付副本 `dist/SaiSuite-1.0.0.apk`。默认 APK 包含 arm64-v8a、armeabi-v7a 与 x86_64。需要独立架构包可另外执行 `flutter build apk --release --split-per-abi`。
+APK 输出 `build/app/outputs/flutter-apk/app-release.apk`，交付副本 `dist/SaiSuite-1.0.0-universal.apk`。默认 APK 包含 arm64-v8a、armeabi-v7a 与 x86_64。需要独立架构包可另外执行 `flutter build apk --release --split-per-abi`。
 
 交付要求：Universal 与独立架构包同时提供。每次更新先构建并复制保存 Universal，再构建并保存三种独立包，不用独立包替代通用包；四种包来自同一份源码、同一版本号和同一签名密钥，并更新全部校验值。
 
@@ -71,9 +71,9 @@ Flutter 的独立包默认加入 ABI 对应的 versionCode 偏移，因此数值
 每个 APK 有同名 `.sha256` 文件，另汇总到 `dist/SHA256SUMS.txt`；架构、签名与安装检查见验收记录。
 
 ```powershell
-adb install -r dist/SaiSuite-1.0.0.apk
+adb install -r dist/SaiSuite-1.0.0-universal.apk
 adb shell am start -n io.github.wxia529.saisuite/.MainActivity
-Get-FileHash dist/SaiSuite-1.0.0.apk -Algorithm SHA256
+Get-FileHash dist/SaiSuite-1.0.0-universal.apk -Algorithm SHA256
 ```
 
 debug 与 release 密钥不同，无法相互覆盖；仅在测试设备上卸载旧测试包后安装。卸载会删除该应用的本地设置与历史，不应用于需要保留数据的正式安装。
