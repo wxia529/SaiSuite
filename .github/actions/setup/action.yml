@@ -11,6 +11,13 @@ runs:
         cache-dependency-path: |
           android/**/*.gradle.kts
           android/gradle/wrapper/gradle-wrapper.properties
+    - name: Install Android command-line tools and SDK packages
+      uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+      with:
+        # Keep the sdkmanager/avdmanager toolchain compatible with JDK 17.
+        cmdline-tools-version: '12266719' # 16.0
+        log-accepted-android-sdk-licenses: false
+        packages: 'platform-tools platforms;android-36 build-tools;36.0.0 ndk;28.2.13676358 cmake;3.22.1'
     - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
       with:
         flutter-version: '3.47.6'
@@ -19,9 +26,10 @@ runs:
     - name: Configure Android SDK and runner memory
       shell: bash
       run: |
+        command -v sdkmanager
+        sdkmanager --version
         flutter --disable-analytics
         flutter config --jdk-dir "$JAVA_HOME" --android-sdk "$ANDROID_HOME"
-        sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;28.2.13676358' 'cmake;3.22.1'
         mkdir -p "$HOME/.gradle"
         printf '%s\n' 'org.gradle.jvmargs=-Xmx3G -XX:MaxMetaspaceSize=1G -XX:ReservedCodeCacheSize=256m' >> "$HOME/.gradle/gradle.properties"
         flutter pub get

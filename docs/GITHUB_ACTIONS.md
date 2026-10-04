@@ -12,6 +12,8 @@
 
 固定使用 Flutter 3.47.6、Temurin JDK 17、Android 平台 36、Build Tools 36.0.0、NDK 28.2.13676358、CMake 3.22.1；Gradle/AGP/Kotlin 继续使用仓库配置。JDK 17 满足当前 AGP 要求，字节码仍为 JVM 17。本机使用 JBR 25 不影响签名一致性；不同构建环境生成的 APK 校验值可能不同。
 
+通过固定提交的 `android-actions/setup-android` 显式安装命令行工具 16.0（12266719）和上述 SDK 包，配置 SDK 环境变量、PATH 与许可证；不依赖运行器预装工具是否可直接调用。Flutter 构建前会检查 `sdkmanager` 路径和版本。测试和正式包构建共用此配置。
+
 第三方 Actions 固定到提交 SHA。常规测试不读取签名 Secrets；只有正式包构建读取四项签名 Secrets，发布 job 才获得仓库写权限。PR 不构建正式签名包。CI 临时密钥使用后删除，不纳入构建产物或日志。
 
 API 36 模拟器启动后核对实际设备 ID 和 SDK。媒体测试需要下载官方测试视频，更新检查测试会访问 GitHub API，因此网络异常可能导致设备测试失败，失败时检查 Actions 的日志附件。源码推送不会直接发布 App 更新。
@@ -79,6 +81,8 @@ python tools/release.py verify
 
 `verify` 检查当前版本的四包并重算校验文件；不修改 APK。`prepare-signing` 专供 CI 使用，拒绝覆盖已有本地签名配置。`clean-signing` 只清理 CI 临时配置，不删除现有正式密钥。
 
-相关官方资料：[GitHub 工作流语法](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax)、[Android Gradle Plugin 9.1 工具链要求](https://developer.android.com/build/releases/agp-9-1-0-release-notes)、[API 模拟器运行 Action](https://github.com/ReactiveCircus/android-emulator-runner)。
+相关官方资料：[GitHub 工作流语法](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax)、[Android Gradle Plugin 9.1 工具链要求](https://developer.android.com/build/releases/agp-9-1-0-release-notes)、[Android SDK 安装 Action](https://github.com/android-actions/setup-android)、[API 模拟器运行 Action](https://github.com/ReactiveCircus/android-emulator-runner)。
 
-2026-10-04 本地验证：actionlint 1.7.12 工作流检查通过、Bash 语法检查通过、11 项发布脚本测试通过；现有 v1.4.0 四包经新脚本验证原签名、版本码、SDK、权限、架构和校验值。真实密钥的 CI 恢复及 Java 属性读取往返也已验证。云端首次执行尚待源码推送与 Secrets 配置。
+2026-10-04 本地验证：actionlint 1.7.12 工作流检查通过、Bash 语法检查通过、11 项发布脚本测试通过；现有 v1.4.0 四包经新脚本验证原签名、版本码、SDK、权限、架构和校验值。真实密钥的 CI 恢复及 Java 属性读取往返也已验证。上述检查不能代替云端执行。
+
+首次云端执行在 SDK 环境初始化失败，日志为 `sdkmanager: command not found`（退出码 127）。已将隐含的预装工具依赖改为上述显式安装步骤；修复后的云端执行结果仍需在推送新提交后验证。
