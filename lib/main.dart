@@ -48,6 +48,9 @@ Future<void> main() async {
   tzdata.initializeTimeZones();
   await Files.cleanOldCache();
   LicenseRegistry.addLicense(() async* {
+    yield LicenseEntryWithLineBreaks([
+      'Noto Emoji',
+    ], await rootBundle.loadString('assets/licenses/noto-emoji-LICENSE.txt'));
     yield LicenseEntryWithLineBreaks(
       ['pro_image_editor and bundled libraries'],
       await rootBundle.loadString(

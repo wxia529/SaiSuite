@@ -1,71 +1,66 @@
 # SaiSuite · 赛赛工具箱
 
-Android 与 Windows 工具箱，Flutter + Dart + Material 3。当前开发版 **1.4.1+10**，Android 共 **82 项工具**，Windows 共 **79 项工具**；本轮新增 22 个创作、文字与日常工作台。
+<img src="assets/branding/saisuite-icon.png" width="96" alt="赛赛工具箱图标">
 
-- PDF：合并、拆分、提取、整理、旋转、图片互转、水印、密码处理、文本提取、文档信息，共 12 项。
-- 日常计算 6 项、文本开发 9 项、基础科研计算 6 项、日期时间 4 项。
-- 科研栏目合并基础科研与电化学：面积、归一化、理论容量、N/P、浆料、电解液、溶剂配比、参比换算、iR 校正。
-- 新增点按科学计算器、配色、图片取色、番茄钟、画板、图片/视频处理、指南针、水平仪、传感器和可校准标尺。
-- 提供多盐/添加剂配方、实际称量反算、装电池备料、测试参数和电导率换算。
-- 密码默认 14 位；新增只清理中文与英文/数字间空格的工具；图片单张处理与多张拼图分别进入，配色助手提供 12 组五色预设及随机灵感。
-- 取色器提供定位圆环和像素放大镜，画板可全屏，PDF 水印按内容、样式、页面分区。
-- 新科研工具不自动保存实验数据，支持主动导出与未导出退出提示。统一搜索、分类、入口收藏与三种主题继续保留。
-- v1.3 重做计算器、单位转换、随机选择、二维码、番茄钟、视频和指南针；画板铺满可用区域，作品比例自适应。
-- v1.3.1 删除循环数据分析、锂金属测试分析、电流积分与容量、梯度配方，科研栏目聚焦配液与装电池的快速计算。
-- v1.4 新增 GitHub 自动更新检查，设置可关闭，保留手动检查与同架构 APK 下载入口。
+一款面向 Android 和 Windows 的工具箱，将文件处理、图片创作、日常计算和实验前的配液计算放在一起。采用 Flutter、Dart 与 Material 3，提供中文界面、分类搜索、收藏和浅色／深色主题。
 
-每次交付同时保留 **Universal 通用包和三种独立架构包**，当前 1.4.1 开发包位于 `dist/development/1.4.1/android/`：
+当前源码版本为 **1.4.2+11**。[查看本版更新说明](docs/releases/v1.4.2.md)；实际已发布的安装包以 [GitHub Releases](https://github.com/wxia529/SaiSuite/releases) 为准。
 
-| 版本 | 文件 | 大小 |
-|---|---|---:|
-| Universal（三种架构） | SaiSuite-1.4.1-universal.apk | 115.20 MiB |
-| ARM32 | SaiSuite-1.4.1-armeabi-v7a.apk | 45.86 MiB |
-| ARM64 | SaiSuite-1.4.1-arm64-v8a.apk | 51.32 MiB |
-| x86_64 | SaiSuite-1.4.1-x86_64.apk | 53.39 MiB |
+## 可以做什么
 
-按设备支持的 CPU 架构选一个安装，四种版本功能相同；不确定架构时使用 Universal。同架构可覆盖升级；校验值在同目录 `SHA256SUMS.txt`。旧包保留。签名密钥与构建产物不提交到 Git。Android 包名：`io.github.wxia529.saisuite`。
+| 工作台 | 主要能力 |
+|---|---|
+| PDF | 合并、拆分、页面整理、旋转、图片互转、水印、密码处理、文字提取与信息查看；图片可按各自尺寸生成不同大小的 PDF 页面 |
+| 图片与创作 | 全屏图片编辑、格式与尺寸、拼图与长图、图文制作、渐变、九格切图、GIF、幻影坦克、JPEG 信息编辑、图片 OCR 与阈值计数 |
+| 视频与画板 | 视频预览、时间轴、截帧、剪辑、静音、音频提取；画板支持缩放、真实擦除、形状、文字和透明 PNG |
+| 日常与文字 | 科学计算器、单位换算、随机选择、密码、二维码、文本处理、进制、中文数字、摩斯电码、拼音、日期、秒表与番茄钟 |
+| 科研与电解液 | 摩尔质量、配液与稀释、载量与容量、N/P、浆料、盐／溶剂／添加剂配方、实际称量反算、纽扣电池备料与电导率换算 |
+| 配色与设备 | 照片主色、锁色随机、色卡导出、放大取色、校准标尺；Android 另提供指南针、水平仪和传感器读数 |
+
+图片取景支持拖动与缩放，图文制作支持移动文字和自定义 emoji。Android 与 Windows 使用统一图标和界面风格。
+
+## 下载与安装
+
+从 [GitHub Releases](https://github.com/wxia529/SaiSuite/releases) 下载对应平台的安装包，文件名中的版本与该次发布一致。
+
+| 平台 | 选择方式 |
+|---|---|
+| Android 7.0 及以上 | 通常选择 `arm64-v8a.apk`；旧 ARM32 设备选择 `armeabi-v7a.apk`；x86_64 设备选择 `x86_64.apk`；不确定时选择带 `universal` 标识的通用包 |
+| Windows 10／11 x64 | 选择 `windows-x64-setup.exe` 安装版，或解压 `windows-x64.zip` 便携版的整个文件夹后运行 `saisuite.exe` |
+
+Android 升级请继续使用原架构的安装包；正式 APK 沿用同一签名。Windows 更新前先关闭应用。每次发布同时提供通用 APK、分架构 APK、Windows 安装版、便携版和 SHA-256 校验文件。
+
+应用默认每天检查一次 GitHub 更新，可在设置关闭，也可手动检查。下载按钮通过 gh-proxy.org 加速，发布页仍可直接打开 GitHub；下载与安装由用户操作。
+
+## 文件与数据
+
+文件处理生成新文件，保留导入原件。科研输入、配方、作品和计数结果不作为实验记录自动保存，需要保留时请主动导出。主题、入口收藏、最近使用、计算器历史、番茄钟状态与标尺校准属于应用设置。
+
+PDF 不提供正文直接编辑、扫描件 OCR、转 Word 或签名验证。图片 OCR 使用单独工作台；Windows 需要系统中文 OCR 语言资源。拍照计数适合分散且反差明显的对象，需要人工核对。传感器结果取决于设备硬件，标尺需要实体尺校准。具体输入限制和使用条件见使用指南。
 
 ## 文档
 
-- [GitHub Actions 与首次推送](docs/GITHUB_ACTIONS.md)：原密钥签名、四包构建、标签发布与 Secrets 配置；测试在本地进行。
-- [更新检查与 GitHub 发布](docs/UPDATES.md)：自动检查规则、版本号和四包发布步骤。
-- [v1.3.1 范围调整](docs/V1_3_1_GUIDE.md)：移除的工具、升级处理与当前科研功能。
-- [v1.3 使用说明](docs/V1_3_GUIDE.md)：八个常用工具新版界面、时间轴、适配画布与指南针。
-- [v1.2 使用说明](docs/V1_2_GUIDE.md)：图片独立工作台、五色配色、放大取色、全屏画板与水印分区。
-- [使用说明](docs/USER_GUIDE.md)：原工具操作与安装。
-- [v1.1 使用说明](docs/V1_1_GUIDE.md)：新增功能、科研数据口径与限制。
-- [开发指南](docs/DEVELOPMENT_GUIDE.md)：范围、里程碑、完成定义。
-- [下一阶段范围](docs/NEXT_VERSION_SCOPE.md)：点按计算器、配色、计时、画板、媒体与设备工具，以及不保存实验记录的电解液计算。
-- [构建说明](docs/BUILD.md)：工具链、签名、构建与测试命令。
-- [验收记录](docs/ACCEPTANCE.md)：逐项功能矩阵、设备和验证证据。
-- [依赖与许可](docs/DEPENDENCIES.md)：PDF 原生服务与数据来源。
-- [电化学后续规划](docs/ELECTROCHEMISTRY_ROADMAP.md)：其余 40 项候选保留后续排期。
+| 文档 | 内容 |
+|---|---|
+| [使用指南](docs/USER_GUIDE.md) | 安装、各工作台的操作方式、文件限制与平台差异 |
+| [开发指南](docs/DEVELOPMENT_GUIDE.md) | 当前范围、代码结构、设计约定与测试要求 |
+| [构建说明](docs/BUILD.md) | Android／Windows 环境、签名、调试和打包命令 |
+| [发布流程](docs/RELEASING.md) | 版本升级、本地检查、提交规则、tag 与 GitHub Actions |
+| [科研口径](docs/SCIENCE.md) | 当前科研功能采用的公式、单位和常量 |
+| [依赖与许可](docs/DEPENDENCIES.md) | Flutter、原生服务、桌面组件、字体和数据来源 |
+| [发布记录](docs/releases/README.md) | 按版本维护的正式更新说明 |
 
-## 开发
-
-默认设备测试使用 Android 16（API 36）的 `SaiSuite_API_36` 模拟器，执行前核对实际设备 ID。其他系统版本按兼容需求补充验证，详见 [构建说明](docs/BUILD.md)。
+## 开发入口
 
 ```powershell
 flutter pub get
 flutter analyze
 flutter test
-flutter test integration_test/pdf_test.dart -d emulator-5558
-flutter test integration_test/tools_test.dart -d emulator-5558
-flutter test integration_test/updates_test.dart -d emulator-5558
-flutter build apk --release
+flutter run -d <设备ID>
 ```
 
-release 构建需要已备份的本地签名材料，见构建说明。运行设备集成测试后，正式构建应保留默认的依赖准备步骤，避免复用测试插件注册缓存。
+默认设备验证使用 `SaiSuite_API_36`，运行前通过 `adb devices` 和 `ro.build.version.sdk` 确认实际设备为 Android 16／API 36。最低支持 API 24，compileSdk／targetSdk 为 36；测试设备选择不会改变这些设置。
 
-## 代码
+`lib/features/catalog.dart` 注册入口，`lib/core/` 处理计算和公共逻辑；Android 与 Windows 的文件、媒体和硬件能力通过平台通道连接。构建环境与完整交付步骤见构建说明。
 
-`lib/features/catalog.dart` 注册 82 个工具；`lib/core/engine.dart` 和 `electrolyte.dart` 实现可测试的计算；各工作台负责即时输入和导出。Android 原生服务处理 PDF、媒体、传感器与计时通知。SharedPreferences 仅用于既有应用设置、入口收藏/最近使用、普通计算器历史，以及番茄钟状态和标尺校准。新科研输入/计算结果不写入实验数据库。
-
-当前交付为 Android 版。PDF 不提供 OCR、正文编辑、转 Word 或签名验证；复杂书签、表单、批注关系不保证在页面重组后完整保留。
-
-
-## Windows 桌面版
-
-新增的 22 个创作、文字与日常工作台见 [扩展功能说明](docs/CREATIVE_TOOLS.md)，包括 GIF、九格、渐变、文字卡片、OCR、拍照计数、音频提取与拼音。开发包单独放在 `dist/development/1.4.1/`，版本为 1.4.1+10。
-
-新增 Windows 10/11 x64 安装版与便携版，版本为 1.4.1+10。安装版运行 -setup.exe，中文向导支持选择目录、快捷方式和卸载；便携版解压完整 ZIP 后运行 saisuite.exe。79 项工具包含 PDF、图片、视频和电解液计算；手机传感器工具仅在 Android 提供。本轮开发包位于 `dist/development/1.4.1/`，上一轮包保留在 `dist/development/windows/`；构建与平台说明见 [Windows 文档](docs/WINDOWS.md)。下一次 tag 构建会同时产出 Android 和两种 Windows 包。
+私钥、密码、设备缓存和安装包不提交到 Git。发现问题可提交 [Issue](https://github.com/wxia529/SaiSuite/issues)，请附平台、复现步骤及去除个人信息后的错误说明。

@@ -6,10 +6,11 @@ import 'package:flutter/foundation.dart';
 
 import 'app_state.dart';
 import 'platform_channel.dart';
+import 'update_links.dart';
 
-const appVersion = '1.4.1';
-const githubRepository = 'wxia529/SaiSuite';
-const githubReleasesUrl = 'https://github.com/$githubRepository/releases';
+export 'update_links.dart';
+
+const appVersion = '1.4.2';
 const updateChannel = SaiChannel('saisuite/updates');
 
 class ReleaseVersion implements Comparable<ReleaseVersion> {
@@ -59,15 +60,6 @@ class InstalledApp {
     );
   }
 }
-
-bool isRepositoryUrl(Uri uri) =>
-    uri.scheme == 'https' &&
-    uri.host == 'github.com' &&
-    uri.userInfo.isEmpty &&
-    uri.port == 443 &&
-    uri.query.isEmpty &&
-    uri.fragment.isEmpty &&
-    uri.pathSegments.take(2).join('/') == githubRepository;
 
 class ReleaseAsset {
   const ReleaseAsset(this.name, this.url, this.size);
@@ -190,8 +182,10 @@ class GitHubUpdates {
 
   Future<GitHubRelease?> fetch() => _fetchRelease();
   Future<void> open(Uri uri) async {
-    if (!isRepositoryUrl(uri)) throw const UpdateFailure('下载地址不属于当前 GitHub 仓库');
-    await _openUrl(uri);
+    if (!isUpdateUrl(uri)) throw const UpdateFailure('下载地址不属于当前 GitHub 仓库');
+    await _openUrl(
+      isReleaseDownloadUrl(uri) ? acceleratedDownloadUrl(uri) : uri,
+    );
   }
 
   static Future<void> openGitHubUrl(Uri uri) async =>

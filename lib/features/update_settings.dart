@@ -17,7 +17,7 @@ Future<void> openUpdateUrl(
         ? e.message
         : e is PlatformException && e.code == 'NO_BROWSER'
         ? '没有可用的浏览器，请安装浏览器后重试'
-        : '无法打开 GitHub，请稍后重试';
+        : '无法打开链接，请稍后重试';
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(message)));
   }
@@ -71,7 +71,9 @@ void showUpdateDetails(BuildContext context, UpdateController updates) {
             onPressed: () => openUpdateUrl(dialogContext, updates, asset.url),
             icon: const Icon(Icons.download_outlined),
             label: Text(
-              app.variant.startsWith('windows-') ? '下载 Windows 版' : '下载 APK',
+              app.variant.startsWith('windows-')
+                  ? '加速下载 Windows 版'
+                  : '加速下载 APK',
             ),
           ),
       ],

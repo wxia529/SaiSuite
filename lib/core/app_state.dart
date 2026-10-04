@@ -1,19 +1,21 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // Removed in v1.3.1; only tool shortcuts are migrated, never exported files.
 const retiredToolIds = {'N02', 'N06', 'N07', 'EC21'};
 
+List<String> migrateShortcutIds(List<String> ids) => {
+  for (final id in ids)
+    if (!retiredToolIds.contains(id)) id == 'B05' ? 'B04' : id,
+}.toList();
+
 class AppState extends ChangeNotifier {
   AppState(this.prefs) {
-    favorites = (prefs.getStringList('favorites') ?? [])
-        .where((id) => !retiredToolIds.contains(id))
-        .toList();
-    recent = (prefs.getStringList('recent') ?? [])
-        .where((id) => !retiredToolIds.contains(id))
-        .toList();
+    favorites = migrateShortcutIds(prefs.getStringList('favorites') ?? []);
+    recent = migrateShortcutIds(prefs.getStringList('recent') ?? []);
     final mode = prefs.getInt('theme') ?? 0;
     theme = ThemeMode.values[mode.clamp(0, ThemeMode.values.length - 1)];
     calculatorHistory = prefs.getStringList('calculatorHistory') ?? [];
@@ -32,11 +34,8 @@ class AppState extends ChangeNotifier {
   Future<void> migrateRetiredTools() async {
     for (final key in ['favorites', 'recent']) {
       final saved = prefs.getStringList(key);
-      if (saved != null && saved.any(retiredToolIds.contains)) {
-        await prefs.setStringList(
-          key,
-          saved.where((id) => !retiredToolIds.contains(id)).toList(),
-        );
+      if (saved != null && !listEquals(saved, migrateShortcutIds(saved))) {
+        await prefs.setStringList(key, migrateShortcutIds(saved));
       }
     }
   }

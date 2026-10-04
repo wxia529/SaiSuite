@@ -250,7 +250,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                 category = '全部';
               }),
               icon: const Icon(Icons.grid_view),
-              label: Text('浏览 ${availableTools.length} 个工具'),
+              label: const Text('浏览工具'),
             ),
           ],
         ),
@@ -360,13 +360,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
               ? const Center(child: Text('没有匹配的工具，试试其他关键词'))
               : ListView(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Text('${filtered.length} 个工具'),
-                    ),
-                    ...filtered.map(toolTile),
-                  ],
+                  children: filtered.map(toolTile).toList(),
                 ),
         ),
       ],
@@ -461,8 +455,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         applicationName: 'SaiSuite · 赛赛工具箱',
         applicationVersion: appVersion,
         aboutBoxChildren: [
-          Text(
-            '${availableTools.length} 个工具：PDF、日常计算、创作、设备、科研与日期。\nPDF、图片和视频支持 Android 与 Windows；指南针和传感器工具在 Android 版提供。',
+          const Text(
+            'PDF、日常计算、创作、设备、科研与日期。\nPDF、图片和视频支持 Android 与 Windows；指南针和传感器工具在 Android 版提供。',
           ),
         ],
       ),

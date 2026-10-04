@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' as ui;
+import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
@@ -7,11 +9,13 @@ import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
 import '../core/creative_images.dart';
+import '../core/image_framing.dart';
 import '../core/files.dart';
 import '../core/platform_channel.dart';
 import 'catalog.dart';
 import 'workbench.dart';
 import 'extra_widgets.dart';
+import 'image_framing_preview.dart';
 
 const creativeChannel = SaiChannel('saisuite/creative');
 
@@ -31,13 +35,17 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
     for (final s in ['拍摄时间', '作者', '版权', '描述']) s: TextEditingController(),
   };
   final images = <String>[], durations = <int>[], owned = <String>[];
+  final frames = <ImageFrame?>[];
+  ui.Image? framingImage, otherImage;
+  Size? framingSize, otherSize;
+  ImageFrame framing = const ImageFrame(), otherFraming = const ImageFrame();
   List<int> colors = [0xff147d73, 0xff7595d8, 0xffe5adbc];
   String? source, other;
   String mode = '合成 GIF', error = '', note = '', outputName = '';
   Map<String, dynamic> metadata = {};
   Uint8List? output, preview;
   bool busy = false, saved = false, loop = true, white = true;
-  double angle = 45, noise = 0, x = .5, y = .5, edge = 480, frameTime = 200;
+  double angle = 45, noise = 0, edge = 480, frameTime = 200;
   Timer? debounce;
   int revision = 0, timingVersion = 0;
   String get id => widget.tool.id;
@@ -51,6 +59,8 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
   @override
   void dispose() {
     debounce?.cancel();
+    framingImage?.dispose();
+    otherImage?.dispose();
     width.dispose();
     height.dispose();
     hex.dispose();
@@ -110,6 +120,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
           for (final file in picked) {
             images.add(await Files.localCopy(file, maxBytes: 30 * 1024 * 1024));
             durations.add(frameTime.round());
+            frames.add(null);
           }
           setState(() {
             output = null;
@@ -125,13 +136,36 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
           picked,
           maxBytes: id == 'B10' ? 100 * 1024 * 1024 : 30 * 1024 * 1024,
         );
-        if (!mounted) return;
+        final loaded = id == 'B02' || id == 'B06'
+            ? await loadFraming(path)
+            : null;
+        if (loaded != null && id == 'B02' && loaded.size.shortestSide < 3) {
+          loaded.image.dispose();
+          throw const FormatException('图片至少需要 3 × 3 像素');
+        }
+        if (!mounted) {
+          loaded?.image.dispose();
+          return;
+        }
         setState(() {
           second ? other = path : source = path;
           output = null;
           preview = null;
           metadata = {};
           saved = false;
+          if (loaded != null) {
+            if (second) {
+              otherImage?.dispose();
+              otherImage = loaded.image;
+              otherSize = loaded.size;
+              otherFraming = const ImageFrame();
+            } else {
+              framingImage?.dispose();
+              framingImage = loaded.image;
+              framingSize = loaded.size;
+              framing = const ImageFrame();
+            }
+          }
         });
         if (id == 'B07') {
           final result = await creativeChannel.invokeMapMethod<String, dynamic>(
@@ -150,6 +184,151 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
         if (id == 'B02') await doGenerate();
       });
   Future<void> generate() => guarded(doGenerate);
+  Future<({ui.Image image, Size size})> loadFraming(String path) async {
+    final result = await compute(creativeImageJob, {
+      'action': 'normalize',
+      'bytes': await File(path).readAsBytes(),
+      'edge': 1400,
+    });
+    final codec = await ui.instantiateImageCodec(result['bytes'] as Uint8List);
+    try {
+      return (
+        image: (await codec.getNextFrame()).image,
+        size: Size(
+          (result['sourceWidth'] as int).toDouble(),
+          (result['sourceHeight'] as int).toDouble(),
+        ),
+      );
+    } finally {
+      codec.dispose();
+    }
+  }
+
+  Widget framingPanel(
+    String title,
+    ui.Image image,
+    Size sourceSize,
+    ImageFrame frame,
+    ValueChanged<ImageFrame> changed, {
+    double ratio = 1,
+    bool grid = false,
+  }) => StudioPanel(
+    title: title,
+    children: [
+      Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: 420 * math.min(1.0, ratio)),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: ImageFramingPreview(
+              key: ValueKey('framing-$title'),
+              image: image,
+              sourceSize: sourceSize,
+              value: frame,
+              ratio: ratio,
+              grid: grid,
+              onChanged: busy ? null : changed,
+            ),
+          ),
+        ),
+      ),
+      const SizedBox(height: 12),
+      const Text('单指拖动、双指缩放；鼠标拖动，滚轮缩放。保持原比例，边缘不留空。'),
+      studioSlider(
+        '取景缩放',
+        frame.zoom,
+        1,
+        grid ? (sourceSize.shortestSide / 3).clamp(1.0, 8.0) : 8,
+        (v) => changed(ImageFrame(zoom: v, x: frame.x, y: frame.y)),
+        display: '${frame.zoom.toStringAsFixed(2)}×',
+      ),
+      TextButton(
+        onPressed: busy ? null : () => changed(const ImageFrame()),
+        child: const Text('重置取景'),
+      ),
+      if (grid) const Text('1—9 为导出顺序。取景后点击生成预览，导出位置与这里一致。'),
+    ],
+  );
+  Future<void> adjustFrame(int index) => guarded(() async {
+    final loaded = await loadFraming(images[index]);
+    try {
+      if (!mounted) return;
+      var frame = frames[index] ?? const ImageFrame();
+      var crop = frames[index] != null;
+      final accepted = await showDialog<bool>(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, refresh) => AlertDialog(
+            title: Text('第 ${index + 1} 帧取景'),
+            scrollable: true,
+            content: SizedBox(
+              width: 380,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  studioChoices(
+                    ['完整保留', '填满裁切'],
+                    crop ? '填满裁切' : '完整保留',
+                    (v) => refresh(() => crop = v == '填满裁切'),
+                  ),
+                  const SizedBox(height: 12),
+                  if (crop)
+                    ImageFramingPreview(
+                      image: loaded.image,
+                      sourceSize: loaded.size,
+                      value: frame,
+                      onChanged: (f) => refresh(() => frame = f),
+                    )
+                  else
+                    AspectRatio(
+                      aspectRatio: 1,
+                      child: ColoredBox(
+                        color: Colors.white,
+                        child: RawImage(
+                          image: loaded.image,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                  if (crop)
+                    studioSlider(
+                      '缩放',
+                      frame.zoom,
+                      1,
+                      8,
+                      (v) => refresh(
+                        () =>
+                            frame = ImageFrame(zoom: v, x: frame.x, y: frame.y),
+                      ),
+                    ),
+                  const Text('拖动图片调整内容，双指或滚轮缩放；完整保留不会裁掉横图或竖图。'),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => refresh(() => frame = const ImageFrame()),
+                child: const Text('重置'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('取消'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('应用'),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (accepted == true && mounted) {
+        invalidate(() => frames[index] = crop ? frame : null);
+      }
+    } finally {
+      loaded.image.dispose();
+    }
+  });
   Future<void> doGenerate() async {
     final requestedRevision = revision;
     Map<String, dynamic> result;
@@ -200,13 +379,14 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
           'durations': durations,
           'edge': edge.round(),
           'loop': loop,
+          'frames': frames.map((f) => f?.toMap()).toList(),
         });
         outputName = '合成动画.gif';
       } else {
         if (source == null) throw const FormatException('请先选择图片');
         a['bytes'] = await File(source!).readAsBytes();
         if (id == 'B02') {
-          a.addAll({'action': 'grid', 'x': x, 'y': y});
+          a.addAll({'action': 'grid', 'frame': framing.toMap()});
           outputName = '九格切图.zip';
         }
         if (id == 'B03') {
@@ -218,6 +398,8 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
           a.addAll({
             'action': 'phantom',
             'other': await File(other!).readAsBytes(),
+            'frame': framing.toMap(),
+            'otherFrame': otherFraming.toMap(),
           });
           outputName = '幻影坦克.png';
         }
@@ -271,7 +453,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
                   File(path),
                   width: 65,
                   height: 65,
-                  fit: BoxFit.cover,
+                  fit: BoxFit.contain,
                   cacheWidth: 160,
                   errorBuilder: (_, _, _) =>
                       const Icon(Icons.image_not_supported),
@@ -455,26 +637,32 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
             ),
           ],
         ),
-      if (id == 'B02' && source != null)
-        StudioPanel(
-          title: '裁切位置',
-          children: [
-            studioSlider(
-              '水平位置',
-              x,
-              0,
-              1,
-              (v) => invalidate(() => x = v, live: true),
-            ),
-            studioSlider(
-              '垂直位置',
-              y,
-              0,
-              1,
-              (v) => invalidate(() => y = v, live: true),
-            ),
-            const Text('最大正方形裁切；按从左到右、从上到下导出九张 PNG。'),
-          ],
+      if (id == 'B02' && framingImage != null)
+        framingPanel(
+          '拖动调整九格画面',
+          framingImage!,
+          framingSize!,
+          framing,
+          (f) => invalidate(() => framing = f),
+          grid: true,
+        ),
+      if (id == 'B06' && framingImage != null)
+        framingPanel(
+          '亮图取景',
+          framingImage!,
+          framingSize!,
+          framing,
+          (f) => invalidate(() => framing = f),
+          ratio: framingSize!.aspectRatio,
+        ),
+      if (id == 'B06' && otherImage != null && framingSize != null)
+        framingPanel(
+          '暗图取景 · 与亮图比例一致',
+          otherImage!,
+          otherSize!,
+          otherFraming,
+          (f) => invalidate(() => otherFraming = f),
+          ratio: framingSize!.aspectRatio,
         ),
       if (id == 'B03' && mode == '合成 GIF')
         StudioPanel(
@@ -488,48 +676,69 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
             ...images.asMap().entries.map(
               (e) => Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Row(
+                child: Column(
                   children: [
-                    Image.file(
-                      File(e.value),
-                      width: 42,
-                      height: 42,
-                      fit: BoxFit.cover,
-                      cacheWidth: 100,
-                    ),
-                    const SizedBox(width: 10),
-                    Text('${e.key + 1}'),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextFormField(
-                        key: ValueKey('${e.value}-${e.key}-$timingVersion'),
-                        initialValue: '${durations[e.key]}',
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: '时长 ms'),
-                        onChanged: (s) => invalidate(
-                          () => durations[e.key] = int.tryParse(s) ?? 0,
+                    Row(
+                      children: [
+                        Image.file(
+                          File(e.value),
+                          width: 42,
+                          height: 42,
+                          fit: BoxFit.contain,
+                          cacheWidth: 100,
                         ),
-                      ),
+                        const SizedBox(width: 10),
+                        Text('${e.key + 1}'),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextFormField(
+                            key: ValueKey('${e.value}-${e.key}-$timingVersion'),
+                            initialValue: '${durations[e.key]}',
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: '时长 ms',
+                            ),
+                            onChanged: (s) => invalidate(
+                              () => durations[e.key] = int.tryParse(s) ?? 0,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    IconButton(
-                      tooltip: '向前移动',
-                      onPressed: e.key == 0
-                          ? null
-                          : () => invalidate(() {
-                              final p = images.removeAt(e.key),
-                                  d = durations.removeAt(e.key);
-                              images.insert(e.key - 1, p);
-                              durations.insert(e.key - 1, d);
-                            }),
-                      icon: const Icon(Icons.arrow_upward),
-                    ),
-                    IconButton(
-                      tooltip: '移除',
-                      onPressed: () => invalidate(() {
-                        images.removeAt(e.key);
-                        durations.removeAt(e.key);
-                      }),
-                      icon: const Icon(Icons.close),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        IconButton(
+                          tooltip: '调整帧画面',
+                          onPressed: busy ? null : () => adjustFrame(e.key),
+                          icon: const Icon(Icons.crop),
+                        ),
+                        IconButton(
+                          tooltip: '向前移动',
+                          onPressed: busy || e.key == 0
+                              ? null
+                              : () => invalidate(() {
+                                  final p = images.removeAt(e.key),
+                                      d = durations.removeAt(e.key);
+                                  images.insert(e.key - 1, p);
+                                  durations.insert(e.key - 1, d);
+                                  final f = frames.removeAt(e.key);
+                                  frames.insert(e.key - 1, f);
+                                }),
+                          icon: const Icon(Icons.arrow_upward),
+                        ),
+                        IconButton(
+                          tooltip: '移除',
+                          onPressed: busy
+                              ? null
+                              : () => invalidate(() {
+                                  images.removeAt(e.key);
+                                  durations.removeAt(e.key);
+                                  frames.removeAt(e.key);
+                                }),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -566,7 +775,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
               value: loop,
               onChanged: (v) => invalidate(() => loop = v),
             ),
-            const Text('图片按比例放入正方形画布，空白填白；每帧 20—10000 ms。'),
+            const Text('默认完整保留图片比例、空白填白；点击每帧裁切按钮可拖动、缩放取景。每帧 20—10000 ms。'),
           ],
         ),
       if (id == 'B07' && source != null) ...[

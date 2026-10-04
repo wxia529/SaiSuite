@@ -507,16 +507,23 @@ class _ToolPageState extends State<ToolPage> {
                 ],
               ),
               const SizedBox(height: 14),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  '表达式',
+                  key: const ValueKey('calculator-expression-label'),
+                  style: Theme.of(context).textTheme.labelMedium,
+                ),
+              ),
+              const SizedBox(height: 6),
               TextField(
+                key: const ValueKey('calculator-expression-input'),
                 controller: controllers['表达式'],
                 enabled: !busy,
                 maxLines: 2,
                 minLines: 1,
                 textAlign: TextAlign.right,
-                decoration: const InputDecoration(
-                  labelText: '表达式',
-                  hintText: '输入表达式或点按键盘',
-                ),
+                decoration: const InputDecoration(hintText: '输入表达式或点按键盘'),
                 onChanged: (_) => setState(() {
                   result = null;
                   error = null;

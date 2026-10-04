@@ -8,7 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:saisuite/app/sai_app.dart';
 import 'package:saisuite/core/app_state.dart';
 import 'package:saisuite/core/updates.dart';
-import 'package:saisuite/features/catalog.dart';
+import 'package:saisuite/features/update_settings.dart';
 
 Map<String, dynamic> releaseJson({String tag = 'v1.5.0'}) {
   final name = ReleaseVersion.parse(tag).name;
@@ -103,6 +103,119 @@ class TestClient implements HttpClient {
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+  test('download acceleration preserves encoded tags, cache and all package variants', () async {
+    final json = releaseJson(tag: 'v1.5.0+11');
+    json['html_url'] = (json['html_url'] as String).replaceAll('+', '%2B');
+    for (final asset in json['assets'] as List) {
+      asset['browser_download_url'] = (asset['browser_download_url'] as String)
+          .replaceAll('+', '%2B');
+    }
+    for (final suffix in ['windows-x64.zip', 'windows-x64-setup.exe']) {
+      (json['assets'] as List).add({
+        'name': 'SaiSuite-1.5.0-$suffix',
+        'size': 100000000,
+        'state': 'uploaded',
+        'browser_download_url':
+            'https://github.com/$githubRepository/releases/download/v1.5.0%2B11/SaiSuite-1.5.0-$suffix',
+      });
+    }
+    final cached = GitHubRelease.parse(GitHubRelease.parse(json).toJson());
+    Uri? opened;
+    final service = GitHubUpdates(openUrl: (uri) async => opened = uri);
+    for (final asset in cached.assets) {
+      expect(asset.url.host, 'github.com');
+      await service.open(asset.url);
+      expect(opened.toString(), '$githubDownloadProxy${asset.url}');
+      expect(opened.toString(), contains('v1.5.0%2B11/'));
+      final accelerated = opened!;
+      await service.open(accelerated);
+      expect(opened, accelerated);
+    }
+    await service.open(cached.url);
+    expect(opened, cached.url);
+  });
+  test('proxy opening rejects foreign sources, nested proxies and altered URLs', () async {
+    var calls = 0;
+    final service = GitHubUpdates(openUrl: (_) async => calls++);
+    const source =
+        'https://github.com/$githubRepository/releases/download/v1.5.0/SaiSuite-1.5.0-universal.apk';
+    for (final value in [
+      'http://gh-proxy.org/$source',
+      'https://gh-proxy.org.evil.example/$source',
+      'https://user@gh-proxy.org/$source',
+      'https://gh-proxy.org:8443/$source',
+      '$githubDownloadProxy${source.replaceFirst('github.com', 'evil.example')}',
+      '$githubDownloadProxy${source.replaceFirst(githubRepository, 'other/repo')}',
+      '$githubDownloadProxy$githubDownloadProxy$source',
+      '$githubDownloadProxy$source?redirect=evil',
+      '$githubDownloadProxy$source#fragment',
+      '$githubDownloadProxy$githubReleasesUrl',
+      '$githubDownloadProxy${source.replaceFirst('.apk', '.apk/extra')}',
+      '$githubDownloadProxy${source.replaceFirst('universal.apk', '%2Fother.apk')}',
+      source.replaceFirst('SaiSuite-1.5.0', 'SaiSuite-1.6.0'),
+    ]) {
+      await expectLater(
+        service.open(Uri.parse(value)),
+        throwsA(isA<UpdateFailure>()),
+      );
+    }
+    expect(calls, 0);
+  });
+  for (final installer in [true, false]) {
+    testWidgets('Windows accelerated button opens ${installer ? 'setup' : 'ZIP'}', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 700);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final state = AppState(await SharedPreferences.getInstance());
+      final json = releaseJson();
+      final suffix = installer ? '-setup.exe' : '.zip';
+      (json['assets'] as List).add({
+        'name': 'SaiSuite-1.5.0-windows-x64$suffix',
+        'size': 100000000,
+        'state': 'uploaded',
+        'browser_download_url':
+            'https://github.com/$githubRepository/releases/download/v1.5.0/SaiSuite-1.5.0-windows-x64$suffix',
+      });
+      Uri? opened;
+      final controller = UpdateController(
+        state,
+        GitHubUpdates(
+          readApp: () async => const InstalledApp('1.4.1', 10, 'windows-x64'),
+          fetchRelease: () async => GitHubRelease.parse(json),
+          openUrl: (uri) async => opened = uri,
+        ),
+      );
+      addTearDown(controller.dispose);
+      await controller.check();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showUpdateDetails(context, controller),
+                child: const Text('查看更新'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('查看更新'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('加速下载 Windows 版'));
+      await tester.pumpAndSettle();
+      expect(
+        opened.toString(),
+        '${githubDownloadProxy}https://github.com/$githubRepository/releases/download/v1.5.0/SaiSuite-1.5.0-windows-x64$suffix',
+      );
+      await tester.tap(find.text('GitHub 发布页'));
+      await tester.pumpAndSettle();
+      expect(opened, controller.release!.url);
+      expect(tester.takeException(), isNull);
+    });
+  }
   test('Windows updates prefer setup, fall back to ZIP and never offer APK', () {
     const windows = InstalledApp('1.4.0', 9, 'windows-x64');
     final json = releaseJson();
@@ -408,8 +521,13 @@ void main() {
       await tester.tap(find.text('查看新版本'));
       await tester.pumpAndSettle();
       expect(find.text('改进 PDF 与计算工具。'), findsOneWidget);
-      await tester.tap(find.text('下载 APK'));
+      await tester.tap(find.text('加速下载 APK'));
       await tester.pumpAndSettle();
+      expect(opened!.host, 'gh-proxy.org');
+      expect(
+        opened.toString(),
+        '${githubDownloadProxy}https://github.com/$githubRepository/releases/download/v1.5.0/SaiSuite-1.5.0-x86_64.apk',
+      );
       expect(opened!.pathSegments.last, 'SaiSuite-1.5.0-x86_64.apk');
       expect(tester.takeException(), isNull);
     },
@@ -432,7 +550,7 @@ void main() {
     addTearDown(updates.dispose);
     await tester.pumpWidget(SaiApp(state: state, updates: updates));
     await tester.pumpAndSettle();
-    expect(find.text('浏览 ${tools.length} 个工具'), findsOneWidget);
+    expect(find.text('浏览工具'), findsOneWidget);
     await tester.tap(find.text('设置'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('无法连接 GitHub，请检查网络后重试'));

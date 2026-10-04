@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'files.dart';
+import 'update_links.dart';
 
 /// Android keeps its existing native channel; Windows uses the bundled worker.
 class SaiChannel {
@@ -70,14 +71,7 @@ class WindowsBackend {
       }
       if (method == 'openUrl') {
         final uri = Uri.parse(a['url'] as String);
-        if (uri.scheme != 'https' ||
-            uri.host != 'github.com' ||
-            uri.userInfo.isNotEmpty ||
-            uri.port != 443 ||
-            uri.hasQuery ||
-            uri.hasFragment ||
-            !(uri.path == '/wxia529/SaiSuite/releases' ||
-                uri.path.startsWith('/wxia529/SaiSuite/releases/'))) {
+        if (!isUpdateUrl(uri)) {
           throw PlatformException(code: 'URL', message: '地址不属于当前发布仓库');
         }
         await Process.run('explorer.exe', [uri.toString()]);

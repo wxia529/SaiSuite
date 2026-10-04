@@ -33,10 +33,7 @@ class MainActivity : FlutterActivity() {
                 }
                 "openUrl" -> {
                     val uri = Uri.parse(call.argument<String>("url") ?: "")
-                    val path = uri.path ?: ""
-                    if (uri.scheme != "https" || uri.host != "github.com" || uri.userInfo != null ||
-                        (uri.port != -1 && uri.port != 443) || uri.query != null || uri.fragment != null ||
-                        !(path == "/wxia529/SaiSuite/releases" || path.startsWith("/wxia529/SaiSuite/releases/"))) {
+                    if (!UpdateLinks.allowed(uri)) {
                         result.error("INVALID_URL", "仅支持当前 GitHub 仓库的发布地址", null)
                     } else {
                         try {

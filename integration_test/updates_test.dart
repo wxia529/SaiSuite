@@ -22,14 +22,22 @@ void main() {
         installed.variant,
         'universal',
       ); // Debug uses the base versionCode without an ABI offset.
-      await expectLater(
-        updateChannel.invokeMethod('openUrl', {
-          'url': 'https://example.com/update.apk',
-        }),
-        throwsA(
-          isA<PlatformException>().having((e) => e.code, 'code', 'INVALID_URL'),
-        ),
-      );
+      for (final url in [
+        'https://example.com/update.apk',
+        '${githubDownloadProxy}https://github.com/other/repo/releases/download/v9.0.0/SaiSuite-9.0.0-universal.apk',
+        'http://gh-proxy.org/https://github.com/$githubRepository/releases/download/v9.0.0/SaiSuite-9.0.0-universal.apk',
+      ]) {
+        await expectLater(
+          updateChannel.invokeMethod('openUrl', {'url': url}),
+          throwsA(
+            isA<PlatformException>().having(
+              (e) => e.code,
+              'code',
+              'INVALID_URL',
+            ),
+          ),
+        );
+      }
       var requests = 0;
       final future = GitHubRelease.parse({
         'tag_name': 'v9.0.0',
@@ -104,6 +112,9 @@ void main() {
         ); // The real repository may acquire its first release later.
       }
       expect(tester.takeException(), isNull);
+      // A nonexistent fixture asset exercises the real Android browser intent
+      // without downloading an installer or modifying a public release.
+      await GitHubUpdates().open(future.assets.single.url);
     },
   );
 }

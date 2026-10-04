@@ -174,29 +174,32 @@ void main() {
     });
     expect((result['points'] as List).length, 3);
   });
-  testWidgets('all 22 workbenches fit a narrow screen and dispose cleanly', (
-    tester,
-  ) async {
-    SharedPreferences.setMockInitialValues({});
-    final state = AppState(await SharedPreferences.getInstance());
-    await tester.binding.setSurfaceSize(const Size(360, 800));
-    for (final tool in tools.where((t) => RegExp(r'^[UXB]\d').hasMatch(t.id))) {
-      final page = tool.id.startsWith('U')
-          ? ExtraDailyPage(tool: tool, state: state)
-          : tool.id.startsWith('X')
-          ? ExtraTextPage(tool: tool, state: state)
-          : {'B04', 'B05'}.contains(tool.id)
-          ? PosterPage(tool: tool, state: state)
-          : {'B08', 'B09'}.contains(tool.id)
-          ? RecognitionPage(tool: tool, state: state)
-          : ImageStudioPage(tool: tool, state: state);
-      await tester.pumpWidget(MaterialApp(home: page));
-      await tester.pump();
-      expect(tester.takeException(), isNull, reason: tool.name);
-      await tester.pumpWidget(const SizedBox());
-      await tester.pump();
-    }
-    await tester.binding.setSurfaceSize(null);
-    state.dispose();
-  });
+  testWidgets(
+    'all creative workbenches fit a narrow screen and dispose cleanly',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final state = AppState(await SharedPreferences.getInstance());
+      await tester.binding.setSurfaceSize(const Size(360, 800));
+      for (final tool in tools.where(
+        (t) => RegExp(r'^[UXB]\d').hasMatch(t.id),
+      )) {
+        final page = tool.id.startsWith('U')
+            ? ExtraDailyPage(tool: tool, state: state)
+            : tool.id.startsWith('X')
+            ? ExtraTextPage(tool: tool, state: state)
+            : {'B04', 'B05'}.contains(tool.id)
+            ? PosterPage(tool: tool, state: state)
+            : {'B08', 'B09'}.contains(tool.id)
+            ? RecognitionPage(tool: tool, state: state)
+            : ImageStudioPage(tool: tool, state: state);
+        await tester.pumpWidget(MaterialApp(home: page));
+        await tester.pump();
+        expect(tester.takeException(), isNull, reason: tool.name);
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump();
+      }
+      await tester.binding.setSurfaceSize(null);
+      state.dispose();
+    },
+  );
 }

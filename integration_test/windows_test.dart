@@ -14,7 +14,6 @@ import 'package:saisuite/app/sai_app.dart';
 import 'package:saisuite/core/app_state.dart';
 import 'package:saisuite/core/platform_channel.dart';
 import 'package:saisuite/core/updates.dart';
-import 'package:saisuite/features/catalog.dart';
 import 'package:saisuite/core/files.dart';
 import 'package:saisuite/features/image_editor_page.dart';
 import 'package:saisuite/core/localizations.dart';
@@ -158,7 +157,7 @@ void main() {
       SharedPreferences.setMockInitialValues({'autoCheckUpdates': false});
       final app = await InstalledApp.read();
       expect(app.variant, 'windows-x64');
-      expect(app.version, '1.4.0');
+      expect(app.version, appVersion);
       final screenshotKey = GlobalKey();
       await tester.pumpWidget(
         RepaintBoundary(
@@ -168,7 +167,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.byType(NavigationRail), findsOneWidget);
-      expect(find.text('浏览 ${tools.length - 3} 个工具'), findsOneWidget);
+      expect(find.text('浏览工具'), findsOneWidget);
       final screenshot =
           await (screenshotKey.currentContext!.findRenderObject()
                   as RenderRepaintBoundary)

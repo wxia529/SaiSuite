@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 import 'package:archive/archive.dart';
 
+import 'image_framing.dart';
+
 img.Image readCreativeImage(Uint8List bytes, {bool animation = false}) {
   if (bytes.length > 30 * 1024 * 1024) {
     throw const FormatException('图片超过 30 MB');
@@ -20,6 +22,31 @@ img.Image readCreativeImage(Uint8List bytes, {bool animation = false}) {
   final decoded = animation ? decoder!.decode(bytes) : decoder!.decodeFrame(0);
   if (decoded == null) throw const FormatException('无法解码图片');
   return img.bakeOrientation(decoded);
+}
+
+img.Image frameCreativeImage(
+  img.Image source,
+  int width,
+  int height,
+  Map<dynamic, dynamic> value,
+) {
+  final r = imageCrop(
+    source.width.toDouble(),
+    source.height.toDouble(),
+    width.toDouble(),
+    height.toDouble(),
+    ImageFrame.fromMap(value),
+  );
+  final left = r.left.round().clamp(0, source.width - 1),
+      top = r.top.round().clamp(0, source.height - 1);
+  final crop = img.copyCrop(
+    source,
+    x: left,
+    y: top,
+    width: r.width.round().clamp(1, source.width - left),
+    height: r.height.round().clamp(1, source.height - top),
+  );
+  return img.copyResize(crop, width: width, height: height);
 }
 
 Map<String, dynamic> creativeImageJob(Map<String, dynamic> a) {
@@ -67,23 +94,28 @@ Map<String, dynamic> creativeImageJob(Map<String, dynamic> a) {
       throw const FormatException('请选择 2—60 张图片');
     }
     final durations = (a['durations'] as List).cast<int>();
+    final frames = a['frames'] as List?;
     final edge = a['edge'] as int;
     if (edge < 64 ||
         edge > 640 ||
         durations.length != sources.length ||
+        (frames != null && frames.length != sources.length) ||
         durations.any((d) => d < 20 || d > 10000)) {
       throw const FormatException('每帧时长须为 20—10000 ms，边长 64—640');
     }
     img.Image? animation;
     for (var i = 0; i < sources.length; i++) {
       final original = readCreativeImage(sources[i]);
-      final fitted = img.copyResize(
-        original,
-        width: edge,
-        height: edge,
-        maintainAspect: true,
-        backgroundColor: img.ColorRgba8(255, 255, 255, 255),
-      );
+      final frame = frames?[i] as Map?;
+      final fitted = frame != null
+          ? frameCreativeImage(original, edge, edge, frame)
+          : img.copyResize(
+              original,
+              width: edge,
+              height: edge,
+              maintainAspect: true,
+              backgroundColor: img.ColorRgba8(255, 255, 255, 255),
+            );
       fitted.frameDuration = durations[i];
       if (animation == null) {
         animation = fitted;
@@ -129,7 +161,13 @@ Map<String, dynamic> creativeImageJob(Map<String, dynamic> a) {
             height: (source.height * scale).round(),
           )
         : source;
-    return {'bytes': png(image), 'width': image.width, 'height': image.height};
+    return {
+      'bytes': png(image),
+      'width': image.width,
+      'height': image.height,
+      'sourceWidth': source.width,
+      'sourceHeight': source.height,
+    };
   }
   if (action == 'crop') {
     final x = (a['left'] as int).clamp(0, source.width - 1),
@@ -143,11 +181,26 @@ Map<String, dynamic> creativeImageJob(Map<String, dynamic> a) {
     };
   }
   if (action == 'grid') {
-    final tile = math.min(source.width, source.height) ~/ 3;
+    final frame = a['frame'] as Map?;
+    final crop = frame == null
+        ? null
+        : imageCrop(
+            source.width.toDouble(),
+            source.height.toDouble(),
+            1,
+            1,
+            ImageFrame.fromMap(frame),
+            grid: true,
+          );
+    final tile = crop == null
+        ? math.min(source.width, source.height) ~/ 3
+        : crop.width.toInt() ~/ 3;
     if (tile < 1) throw const FormatException('图片尺寸太小');
     final side = tile * 3;
-    final x = ((source.width - side) * (a['x'] as num)).round();
-    final y = ((source.height - side) * (a['y'] as num)).round();
+    final x =
+        crop?.left.toInt() ?? ((source.width - side) * (a['x'] as num)).round();
+    final y =
+        crop?.top.toInt() ?? ((source.height - side) * (a['y'] as num)).round();
     final cropped = img.copyCrop(source, x: x, y: y, width: side, height: side);
     final archive = Archive();
     for (var row = 0; row < 3; row++) {
@@ -210,16 +263,21 @@ Map<String, dynamic> creativeImageJob(Map<String, dynamic> a) {
   }
   if (action == 'phantom') {
     final other = readCreativeImage(a['other'] as Uint8List);
-    final width = math.min(source.width, 1600),
-        height = (source.height * width / source.width).round();
-    final light = img.copyResize(source, width: width, height: height);
-    final dark = img.copyResize(
-      other,
-      width: width,
-      height: height,
-      maintainAspect: true,
-      backgroundColor: img.ColorRgb8(0, 0, 0),
-    );
+    final scale = math.min(1.0, 1600 / math.max(source.width, source.height));
+    final width = (source.width * scale).round().clamp(1, 1600),
+        height = (source.height * scale).round().clamp(1, 1600);
+    final light = a['frame'] == null
+        ? img.copyResize(source, width: width, height: height)
+        : frameCreativeImage(source, width, height, a['frame'] as Map);
+    final dark = a['otherFrame'] != null
+        ? frameCreativeImage(other, width, height, a['otherFrame'] as Map)
+        : img.copyResize(
+            other,
+            width: width,
+            height: height,
+            maintainAspect: true,
+            backgroundColor: img.ColorRgb8(0, 0, 0),
+          );
     final result = img.Image(width: width, height: height, numChannels: 4);
     for (final p in result) {
       final w = 127.5 + img.getLuminance(light.getPixel(p.x, p.y)) / 2;

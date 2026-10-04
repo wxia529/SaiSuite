@@ -98,17 +98,11 @@ final tools = <ToolSpec>[
   ),
   const ToolSpec(
     'B04',
-    '表情制作',
+    '图文制作',
     '创作',
-    '图片、文字描边与可移动贴纸',
+    '照片加字、文字卡片与自定义表情贴纸',
     Icons.emoji_emotions_outlined,
-  ),
-  const ToolSpec(
-    'B05',
-    '文字转图',
-    '创作',
-    '文字卡片、画布配色与透明 PNG',
-    Icons.text_snippet_outlined,
+    aliases: '表情制作 文字转图 文字转图片 emoji',
   ),
   const ToolSpec(
     'B06',

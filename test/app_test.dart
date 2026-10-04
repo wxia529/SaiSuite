@@ -65,7 +65,7 @@ void main() {
     },
   );
   testWidgets(
-    'retired tools disappear from search and upgraded app shows 60 tools',
+    'retired tools disappear from search and tool browsing remains available',
     (tester) async {
       SharedPreferences.setMockInitialValues({
         'favorites': ['N02', 'N06', 'N07', 'EC21'],
@@ -75,7 +75,7 @@ void main() {
         SaiApp(state: AppState(await SharedPreferences.getInstance())),
       );
       await tester.pumpAndSettle();
-      expect(find.text('浏览 ${tools.length} 个工具'), findsOneWidget);
+      expect(find.text('浏览工具'), findsOneWidget);
       await tester.tap(find.text('工具'));
       await tester.pumpAndSettle();
       for (final name in ['循环数据分析', '锂金属测试分析', '电流积分与容量', '梯度配方']) {

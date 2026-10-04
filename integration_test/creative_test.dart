@@ -142,7 +142,7 @@ void main() {
         home: RepaintBoundary(
           key: key,
           child: PosterPage(
-            tool: tools.firstWhere((t) => t.id == 'B05'),
+            tool: tools.firstWhere((t) => t.id == 'B04'),
             state: state,
           ),
         ),
