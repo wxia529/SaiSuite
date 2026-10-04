@@ -279,3 +279,17 @@
 校验汇总为 `dist/SHA256SUMS.txt`；v1.3.0 四包与 `dist/1.3.0-SHA256SUMS.txt` 保留。日志为 `.buildlog/1.3.1-tests.log`、`1.3.1-analyze.log`、`1.3.1-build-*.log`、`1.3.1-split-inspection.json`。升级与搜索证据为 `1.3.1-{before,after}-upgrade-favorites.xml`、`1.3.1-removed-*.xml`。
 
 ![升级后首页与保留的收藏](images/v1.3.1-home.png)
+
+
+## Android 13 / API 33 简单兼容检查（2026-10-04）
+
+补装官方 `system-images;android-33;google_apis;x86_64` 镜像，创建测试用 AVD `SaiSuite_API_33`，在 Android 13 / API 33 上安装现有 `SaiSuite-1.3.1-x86_64.apk`（versionCode 4008）。本轮没有修改应用源码或重新打包。
+
+- 正式包安装、启动、目录和搜索正常，首页显示 60 个工具。
+- 实际点按计算器等号，度模式 `sin(30)+2^3` 得到 `8.5`。
+- 浓度与配液默认样例：151.90 g/mol、1 mol/L、最终体积 10 mL，得到 0.01 mol 和 1.519 g。
+- Android 系统文件选择器实际导入独立生成的三页 PDF，文档信息正确识别页数及前两页竖版 A4、第三页横版 A4 尺寸。
+- 页面旋转默认 90°，实际经系统保存界面另存 `P05-result.pdf`（1,918 字节）。拉回后用 pypdf 独立解析，三页 `/Rotate` 均为 90，三页原文字全部保留。原始 PDF 的设备端与电脑端 SHA-256 相同，未被改写。
+- 检查时应用进程仍正常运行，Android crash 日志为空。本轮为基础手动检查，未重复全部自动测试，也未验证全部 60 项功能、视频编解码或后台计时提醒。该结果仅证明以上项目在 Android 13 模拟器通过，不能替代 Android 7 或实体旧手机验收。
+
+证据保存在 `.buildlog/api33-{home,calculator,science,pdf-information,pdf-saved}.xml`、`api33-smoke-result.json` 与 `api33-P05-result.pdf`。
