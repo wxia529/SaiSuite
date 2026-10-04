@@ -148,3 +148,24 @@
 ![图片输出与系统保存](images/v1.1-media.png)
 
 实体手机传感器精度、屏幕物理刻度和不同设备媒体编码器兼容性尚待现场核对。ARM64/ARM32 已构建与静态检查，未在对应实体设备安装。CSV 分析针对说明中已配对容量或 Li‖Li 明确步骤字段，不宣称读取所有仪器格式；番茄钟通知受系统省电/权限/重启限制。
+
+
+## v1.1.1 有无表头开关（2026-10-04）
+
+循环数据分析 N06 与锂金属测试分析 N07 增加「文件包含表头」，默认开启。关闭后第一行保留为数据，生成「第 1 列、第 2 列……」供手动映射；支持一行数据，仍限制最多 50000 数据行。切换会使旧解析/映射失效并保留原文，未导出结果先确认；取消保留原模式与结果。合成示例恢复有表头模式，导出 CSV 始终有表头。同步修正开头 BOM 对带引号列名/第一条数据的读取。
+
+- `flutter analyze` 无问题；完整 `flutter test` 89 项通过。新增测试覆盖 CSV/TSV/分号无表头、首行/单行/引号/BOM、列宽错误、50000 行边界、循环/Li‖Li 分析工作线程传递标志，以及两个页面开关与原文保留。
+- 正式 x86_64 包覆盖安装成功。通过系统文件选择器导入 3 行、4 列无表头 CSV，分别映射四列并完成循环分析。导出 CSV 用 Python 重新读取确认全部 3 行，第一圈 CE=90%、基准保持率=100%，没有丢弃第一行。
+- 尝试切换有表头模式时出现未导出提示；点取消后无表头模式、3 行解析及分析结果保留。证据 `.buildlog/headerless-import.xml`、`headerless-analysis.xml`、`header-change-guard.xml`、`header-change-cancel.xml`、`headerless-export.csv`。
+- 四包签名验证通过，沿用原证书，minSdk 24、target/compileSdk 36。每个独立包仅对应 ABI，589 项公共代码/资源/原生库与通用包逐文件一致。本次未改原生服务，未重复运行媒体/PDF 集成；原生验收见 v1.1.0。
+
+| 文件 | 字节 | MiB | versionCode | SHA-256 |
+|---|---:|---:|---:|---|
+| SaiSuite-1.1.1-universal.apk | 70,687,788 | 67.41 | 4 | `119eb033c3dd57c3cbf4910d23fffc3c06245dac565535960ca9e36fd71cc3e7` |
+| SaiSuite-1.1.1-arm64-v8a.apk | 34,190,790 | 32.61 | 2004 | `21a0934e2385595eed96067d6c76a98be0566e447276a3a2cdebd05e9cf7ea39` |
+| SaiSuite-1.1.1-armeabi-v7a.apk | 31,697,810 | 30.23 | 1004 | `65ad8baef0cc75bd509efb0c5d1f75b0e88d4744315d13723cc11c20c16c69af` |
+| SaiSuite-1.1.1-x86_64.apk | 35,674,570 | 34.02 | 4004 | `95f4b6eb6e2e862ab757750f454cfe9a0a6c6e4a5b9de27fc978fc231edf93aa` |
+
+当前汇总为 `dist/SHA256SUMS.txt`；旧 v1.1.0 四包保留，原汇总为 `dist/1.1.0-SHA256SUMS.txt`。包体/签名证据 `.buildlog/1.1.1-*-badging.log`、`1.1.1-*-signature.log`、`1.1.1-split-inspection.json`。
+
+![无表头导入与手动映射](images/v1.1.1-header-switch.png)

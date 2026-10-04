@@ -380,12 +380,12 @@ class _HomeShellState extends State<HomeShell> {
         onTap: () => showLicensePage(
           context: context,
           applicationName: 'SaiSuite · 赛赛工具箱',
-          applicationVersion: '1.1.0',
+          applicationVersion: '1.1.1',
         ),
       ),
       AboutListTile(
         applicationName: 'SaiSuite · 赛赛工具箱',
-        applicationVersion: '1.1.0',
+        applicationVersion: '1.1.1',
         applicationLegalese: '本地处理 · 无账号 · 无上传',
         aboutBoxChildren: [
           Text(

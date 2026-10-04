@@ -6,10 +6,15 @@ class CsvTable {
   CsvTable(this.headers, this.rows);
   final List<String> headers;
   final List<List<String>> rows;
-  factory CsvTable.parse(String source, String delimiter) {
+  factory CsvTable.parse(
+    String source,
+    String delimiter, {
+    bool hasHeader = true,
+  }) {
     if (source.length > 2 * 1024 * 1024) {
       throw const FormatException('数据上限 2 MB');
     }
+    if (source.startsWith('\ufeff')) source = source.substring(1);
     final records = <List<String>>[], row = <String>[];
     var value = StringBuffer(), quoted = false;
     for (var i = 0; i < source.length; i++) {
@@ -39,13 +44,13 @@ class CsvTable {
     if (quoted) throw const FormatException('CSV 引号没有闭合');
     row.add(value.toString().trim());
     if (row.any((v) => v.isNotEmpty)) records.add(row);
-    if (records.length < 2 || records.length > 50001) {
-      throw const FormatException('需要表头和 1—50000 行数据');
+    final dataCount = records.length - (hasHeader ? 1 : 0);
+    if (dataCount < 1 || dataCount > 50000) {
+      throw FormatException(hasHeader ? '需要表头和 1—50000 行数据' : '需要 1—50000 行数据');
     }
-    final headers = records
-        .removeAt(0)
-        .map((h) => h.replaceFirst('\ufeff', ''))
-        .toList();
+    final headers = hasHeader
+        ? records.removeAt(0)
+        : List.generate(records.first.length, (i) => '第 ${i + 1} 列');
     if (headers.any((h) => h.isEmpty) ||
         headers.toSet().length != headers.length ||
         records.any((r) => r.length != headers.length)) {

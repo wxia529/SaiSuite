@@ -12,7 +12,11 @@ import 'catalog.dart';
 import 'workbench.dart';
 
 AnalysisResult analyzeData(Map<String, dynamic> r) {
-  final table = CsvTable.parse(r['text'] as String, r['delimiter'] as String),
+  final table = CsvTable.parse(
+        r['text'] as String,
+        r['delimiter'] as String,
+        hasHeader: r['hasHeader'] as bool? ?? true,
+      ),
       columns = Map<String, int>.from(r['columns'] as Map);
   return r['mode'] == 'Li‖Li极化'
       ? analyzeSymmetric(table, columns, excludeSeconds: r['exclude'] as double)
@@ -26,8 +30,11 @@ AnalysisResult analyzeData(Map<String, dynamic> r) {
         );
 }
 
-CsvTable parseData(Map<String, String> r) =>
-    CsvTable.parse(r['text']!, r['delimiter']!);
+CsvTable parseData(Map<String, dynamic> r) => CsvTable.parse(
+  r['text'] as String,
+  r['delimiter'] as String,
+  hasHeader: r['hasHeader'] as bool? ?? true,
+);
 
 class AnalysisPage extends StatefulWidget {
   const AnalysisPage({super.key, required this.tool, required this.state});
@@ -47,6 +54,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
   CsvTable? table;
   AnalysisResult? result;
   bool busy = false, dirty = false;
+  bool hasHeader = true;
   String delimiter = 'CSV', mode = '循环汇总', filename = '手工数据';
   String? error;
   @override
@@ -116,6 +124,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
       final next = await compute(parseData, {
         'text': text.text,
         'delimiter': separator,
+        'hasHeader': hasHeader,
       });
       final defaults = {
         '样品': ['sample', '样品'],
@@ -133,12 +142,26 @@ class _AnalysisPageState extends State<AnalysisPage> {
           dirty = false;
           columns.clear();
           for (final key in requiredColumns) {
-            columns[key] = next.headers.indexWhere(
-              (s) => defaults[key]!.contains(s.toLowerCase()),
-            );
+            columns[key] = hasHeader
+                ? next.headers.indexWhere(
+                    (s) => defaults[key]!.contains(s.toLowerCase()),
+                  )
+                : -1;
           }
         });
       }
+    });
+  }
+
+  Future<void> changeHeader(bool value) async {
+    if (!await discard() || !mounted) return;
+    setState(() {
+      hasHeader = value;
+      table = null;
+      columns.clear();
+      result = null;
+      dirty = false;
+      error = null;
     });
   }
 
@@ -179,6 +202,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
       final next = await compute(analyzeData, {
         'text': text.text,
         'delimiter': separator,
+        'hasHeader': hasHeader,
         'columns': columns,
         'mode': mode,
         'first': positive(first),
@@ -228,6 +252,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
       dirty = false;
       table = null;
       delimiter = 'CSV';
+      hasHeader = true;
       text.text = mode == 'Li‖Li极化'
           ? 'sample,cycle,step,time,voltage\nA,1,1,0,0.06\nA,1,1,10,0.05\nA,1,2,0,-0.06\nA,1,2,10,-0.05\nA,2,1,0,0.055\nA,2,1,10,0.045\nA,2,2,0,-0.055\nA,2,2,10,-0.045'
           : 'sample,cycle,charge,discharge\nA,1,1,0.9\nA,2,1,0.95\nA,3,1,0.94\nB,1,1,0.91\nB,2,1,0.96\nB,3,1,0.95';
@@ -253,7 +278,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
     onExport: exportCsv,
     children: [
       const Text(
-        '只分析当前数据，不保存实验记录。UTF-8 文件上限 2 MB、50000 行，需要表头。容量 mAh，电压 V，时间 s；容量须来自确认配对的步骤。',
+        '只分析当前数据，不保存实验记录。UTF-8 文件上限 2 MB、50000 行，可选择有无表头。容量 mAh，电压 V，时间 s；容量须来自确认配对的步骤。',
       ),
       if (widget.tool.id == 'N07')
         DropdownButtonFormField<String>(
@@ -278,13 +303,31 @@ class _AnalysisPageState extends State<AnalysisPage> {
         ),
       const SizedBox(height: 12),
       DropdownButtonFormField<String>(
+        key: ValueKey('delimiter:$delimiter'),
         initialValue: delimiter,
         items: [
           'CSV',
           'TSV',
           '分号',
         ].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-        onChanged: busy ? null : (s) => setState(() => delimiter = s!),
+        onChanged: busy
+            ? null
+            : (s) => setState(() {
+                delimiter = s!;
+                table = null;
+                columns.clear();
+              }),
+      ),
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: const Text('文件包含表头'),
+        subtitle: Text(
+          hasHeader
+              ? '第一行为列名，其余行为数据；列名可以自行命名。'
+              : '第一行也作为数据；解析后按第 1 列、第 2 列等手动映射。',
+        ),
+        value: hasHeader,
+        onChanged: busy ? null : changeHeader,
       ),
       Wrap(
         spacing: 8,
@@ -305,7 +348,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
         enabled: !busy,
         minLines: 4,
         maxLines: 7,
-        decoration: const InputDecoration(labelText: '表头与数据'),
+        decoration: InputDecoration(labelText: hasHeader ? '表头与数据' : '数据（无表头）'),
         onChanged: (_) => setState(() => table = null),
       ),
       FilledButton(onPressed: busy ? null : parse, child: const Text('解析并映射列')),

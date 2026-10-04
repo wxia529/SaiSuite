@@ -90,6 +90,58 @@ void main() {
     expect(r.summary, contains('不是单电极过电位'));
     expect(() => CsvTable.parse('a,b\n"open,1', ','), throwsFormatException);
   });
+  test('headerless input keeps the first row, BOM, quotes and single rows', () {
+    final table = CsvTable.parse(
+      '\ufeff"A,1",1,1,.9\r\n"A,1",2,1,.8',
+      ',',
+      hasHeader: false,
+    );
+    expect(table.headers, ['第 1 列', '第 2 列', '第 3 列', '第 4 列']);
+    expect(table.rows.length, 2);
+    expect(table.rows.first, ['A,1', '1', '1', '.9']);
+    expect(CsvTable.parse('1,1,.9', ',', hasHeader: false).rows.length, 1);
+    // Repeated values in the first row are data, not duplicate column names.
+    expect(CsvTable.parse('1,1', ',', hasHeader: false).rows.single, [
+      '1',
+      '1',
+    ]);
+    expect(CsvTable.parse('\ufeff"电池",圈数\nA,1', ',').headers, ['电池', '圈数']);
+  });
+  test('headerless TSV and semicolon data still validate row widths', () {
+    for (final delimiter in ['\t', ';']) {
+      final table = CsvTable.parse(
+        '1$delimiter.9\n2$delimiter.8',
+        delimiter,
+        hasHeader: false,
+      );
+      expect(table.rows.length, 2);
+      expect(table.rows.first, ['1', '.9']);
+      expect(
+        () => CsvTable.parse('1$delimiter.9\n2', delimiter, hasHeader: false),
+        throwsFormatException,
+      );
+    }
+    expect(
+      () => CsvTable.parse('', ',', hasHeader: false),
+      throwsFormatException,
+    );
+    expect(
+      () => CsvTable.parse('cycle,charge,discharge', ','),
+      throwsFormatException,
+    );
+  });
+  test('headerless data has the same 50000 data row limit', () {
+    final rows = List.filled(50000, '1,1,.9').join('\n');
+    expect(CsvTable.parse(rows, ',', hasHeader: false).rows.length, 50000);
+    expect(
+      CsvTable.parse('cycle,charge,discharge\n$rows', ',').rows.length,
+      50000,
+    );
+    expect(
+      () => CsvTable.parse('$rows\n1,1,.9', ',', hasHeader: false),
+      throwsFormatException,
+    );
+  });
   test('cycle pairing uses selected baseline and sample deviation', () {
     final table = CsvTable.parse(
       'sample,cycle,charge,discharge\nA,1,1,0.5\nA,2,1,0.8\nB,1,1,0.6\nB,2,1,1.2',

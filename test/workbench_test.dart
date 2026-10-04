@@ -11,8 +11,88 @@ import 'package:saisuite/features/tool_page.dart';
 import 'package:saisuite/features/palette_page.dart';
 import 'package:saisuite/features/pomodoro_page.dart';
 import 'package:saisuite/features/drawing_page.dart';
+import 'package:saisuite/features/analysis_page.dart';
 
 void main() {
+  test(
+    'analysis worker honors the header flag for cycles and lithium data',
+    () {
+      final cycle = analyzeData({
+        'text': 'A,1,1,.9\nA,2,1,.8',
+        'delimiter': ',',
+        'hasHeader': false,
+        'columns': {'样品': 0, '循环': 1, '充电/沉积容量': 2, '放电/剥离容量': 3},
+        'mode': '循环汇总',
+        'baseline': 1,
+        'first': 1,
+        'compare': 2,
+      });
+      expect(cycle.csv, contains('"A",1,1,0.9,90,100'));
+      final lithium = analyzeData({
+        'text': 'A,1,1,0,.1\nA,1,1,10,.05',
+        'delimiter': ',',
+        'hasHeader': false,
+        'columns': {'样品': 0, '循环': 1, '步骤': 2, '时间': 3, '电压': 4},
+        'mode': 'Li‖Li极化',
+        'exclude': 0.0,
+      });
+      expect(lithium.curves.first.points.first.$2, closeTo(.075, 1e-12));
+      expect(
+        parseData({'text': '1,1,.9', 'delimiter': ',', 'hasHeader': false})
+            .rows
+            .length,
+        1,
+      );
+    },
+  );
+  for (final id in ['N06', 'N07']) {
+    testWidgets(
+      '$id header switch keeps source text and changes the import mode',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(600, 1200));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        SharedPreferences.setMockInitialValues({});
+        final prefs = await SharedPreferences.getInstance();
+        await tester.pumpWidget(
+          MaterialApp(
+            home: AnalysisPage(
+              tool: tools.firstWhere((t) => t.id == id),
+              state: AppState(prefs),
+            ),
+          ),
+        );
+        expect(
+          tester.widget<SwitchListTile>(find.byType(SwitchListTile)).value,
+          isTrue,
+        );
+        final input = find.byWidgetPredicate(
+          (w) => w is TextField && w.decoration?.labelText == '表头与数据',
+        );
+        await tester.enterText(input, 'A,1,1,.9\nA,2,1,.8');
+        await tester.tap(find.byType(SwitchListTile));
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<SwitchListTile>(find.byType(SwitchListTile)).value,
+          isFalse,
+        );
+        final noHeader = find.byWidgetPredicate(
+          (w) => w is TextField && w.decoration?.labelText == '数据（无表头）',
+        );
+        expect(
+          tester.widget<TextField>(noHeader).controller!.text,
+          'A,1,1,.9\nA,2,1,.8',
+        );
+        await tester.tap(find.byType(SwitchListTile));
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<SwitchListTile>(find.byType(SwitchListTile)).value,
+          isTrue,
+        );
+        expect(prefs.getKeys(), isEmpty);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
   testWidgets('lab calculation does not persist inputs and warns before exit', (
     tester,
   ) async {
