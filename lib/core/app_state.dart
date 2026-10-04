@@ -17,10 +17,18 @@ class AppState extends ChangeNotifier {
     final mode = prefs.getInt('theme') ?? 0;
     theme = ThemeMode.values[mode.clamp(0, ThemeMode.values.length - 1)];
     calculatorHistory = prefs.getStringList('calculatorHistory') ?? [];
+    autoCheckUpdates = prefs.getBool('autoCheckUpdates') ?? true;
   }
   final SharedPreferences prefs;
   late List<String> favorites, recent, calculatorHistory;
   late ThemeMode theme;
+  late bool autoCheckUpdates;
+  Future<void> setAutoCheckUpdates(bool enabled) async {
+    autoCheckUpdates = enabled;
+    notifyListeners();
+    await prefs.setBool('autoCheckUpdates', enabled);
+  }
+
   Future<void> migrateRetiredTools() async {
     for (final key in ['favorites', 'recent']) {
       final saved = prefs.getStringList(key);

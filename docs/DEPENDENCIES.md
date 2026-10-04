@@ -44,3 +44,8 @@
 视频采用 [AndroidX Media3 Transformer 1.11.1](https://developer.android.com/media/media3/transformer)，Android 原生 Gradle 依赖，使用设备编解码器而不捆绑 FFmpeg。Apache 2.0 许可证保存在 assets/licenses/media3-LICENSE.txt 并注册到开源许可页。图片使用 BitmapFactory、ExifInterface 与 Canvas；设备工具使用 SensorManager、屏幕参数和手动标尺校准。番茄钟使用 AlarmManager 与本地通知，新增 POST_NOTIFICATIONS 运行时权限；不请求相机、定位或广泛媒体读取权限。
 
 Android 集成测试下载 AndroidX Media3 的 sample.mp4 测试素材，下载代码只在 integration_test/tools_test.dart 中，不进入正式 APK。该测试需联网，正式应用处理本地文件。
+
+
+## GitHub 更新检查（v1.4.0）
+
+使用 Dart 标准库 HttpClient 请求公开仓库 wxia529/SaiSuite 的 GitHub Releases API，不新增第三方包，不嵌入访问令牌。正式应用新增 INTERNET 权限，仅提交更新请求所需的 HTTP 信息，不发送工具输入或实验数据。下载由浏览器处理，不申请安装包权限或后台下载 APK。详见 [更新与发布说明](UPDATES.md)。

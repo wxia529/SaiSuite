@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
+import '../core/updates.dart';
+import '../features/update_settings.dart';
 import '../features/catalog.dart';
 import '../features/tool_page.dart';
 import '../features/pdf_page.dart';
@@ -14,8 +16,9 @@ import '../features/media_page.dart';
 import '../features/image_tools_hub.dart';
 
 class SaiApp extends StatelessWidget {
-  const SaiApp({super.key, required this.state});
+  const SaiApp({super.key, required this.state, this.updates});
   final AppState state;
+  final UpdateController? updates;
   ThemeData theme(Brightness brightness) {
     final colors = ColorScheme.fromSeed(
       seedColor: const Color(0xff147d73),
@@ -59,24 +62,52 @@ class SaiApp extends StatelessWidget {
       theme: theme(Brightness.light),
       darkTheme: theme(Brightness.dark),
       themeMode: state.theme,
-      home: HomeShell(state: state),
+      home: HomeShell(state: state, updates: updates),
     ),
   );
 }
 
 class HomeShell extends StatefulWidget {
-  const HomeShell({super.key, required this.state});
+  const HomeShell({super.key, required this.state, this.updates});
   final AppState state;
+  final UpdateController? updates;
   @override
   State<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends State<HomeShell> {
+class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   int tab = 0;
   String query = '', category = '全部';
   final search = TextEditingController();
+  late bool _autoUpdates;
+  @override
+  void initState() {
+    super.initState();
+    _autoUpdates = widget.state.autoCheckUpdates;
+    WidgetsBinding.instance.addObserver(this);
+    widget.state.addListener(_updatePreferenceChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.updates?.initialize();
+    });
+  }
+
+  void _updatePreferenceChanged() {
+    final enabled = widget.state.autoCheckUpdates;
+    if (enabled && !_autoUpdates) widget.updates?.check(automatic: true);
+    _autoUpdates = enabled;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      widget.updates?.check(automatic: true);
+    }
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    widget.state.removeListener(_updatePreferenceChanged);
     search.dispose();
     super.dispose();
   }
@@ -186,6 +217,8 @@ class _HomeShellState extends State<HomeShell> {
         ),
       ),
       const SizedBox(height: 20),
+      if (widget.updates?.available == true)
+        UpdateNotice(updates: widget.updates!),
       TextField(
         readOnly: true,
         onTap: () => setState(() => tab = 1),
@@ -350,6 +383,8 @@ class _HomeShellState extends State<HomeShell> {
         ),
       ),
       const Divider(),
+      if (widget.updates != null)
+        UpdateSettings(state: widget.state, updates: widget.updates!),
       ListTile(
         leading: const Icon(Icons.history),
         title: const Text('清除最近使用与计算历史'),
@@ -380,12 +415,12 @@ class _HomeShellState extends State<HomeShell> {
         onTap: () => showLicensePage(
           context: context,
           applicationName: 'SaiSuite · 赛赛工具箱',
-          applicationVersion: '1.3.1',
+          applicationVersion: appVersion,
         ),
       ),
       AboutListTile(
         applicationName: 'SaiSuite · 赛赛工具箱',
-        applicationVersion: '1.3.1',
+        applicationVersion: appVersion,
         aboutBoxChildren: [
           Text(
             '${tools.length} 个工具：PDF、日常计算、创作、设备、科研与日期。\nPDF、媒体和设备原生能力在 Android 版提供。',
@@ -403,7 +438,10 @@ class _HomeShellState extends State<HomeShell> {
   );
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: widget.state,
+    listenable: Listenable.merge([
+      widget.state,
+      if (widget.updates != null) widget.updates!,
+    ]),
     builder: (context, _) => Scaffold(
       appBar: AppBar(title: Text(['赛赛工具箱', '全部工具', '我的收藏', '设置'][tab])),
       body: Center(

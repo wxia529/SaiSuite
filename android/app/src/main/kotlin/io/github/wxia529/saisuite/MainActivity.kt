@@ -8,6 +8,8 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.app.NotificationManager
 import android.content.Intent
+import android.net.Uri
+import android.content.ActivityNotFoundException
 import android.os.Build
 import android.Manifest
 import android.content.pm.PackageManager
@@ -20,6 +22,32 @@ class MainActivity : FlutterActivity() {
         Intent(this, TimerReceiver::class.java).putExtra("label", label), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "saisuite/updates").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "appInfo" -> {
+                    @Suppress("DEPRECATION") val info = packageManager.getPackageInfo(packageName, 0)
+                    @Suppress("DEPRECATION") val code = if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
+                    val variant = when (code / 1000) { 1L -> "armeabi-v7a"; 2L -> "arm64-v8a"; 4L -> "x86_64"; else -> "universal" }
+                    result.success(mapOf("version" to info.versionName, "versionCode" to code, "variant" to variant))
+                }
+                "openUrl" -> {
+                    val uri = Uri.parse(call.argument<String>("url") ?: "")
+                    val path = uri.path ?: ""
+                    if (uri.scheme != "https" || uri.host != "github.com" || uri.userInfo != null ||
+                        (uri.port != -1 && uri.port != 443) || uri.query != null || uri.fragment != null ||
+                        !(path == "/wxia529/SaiSuite/releases" || path.startsWith("/wxia529/SaiSuite/releases/"))) {
+                        result.error("INVALID_URL", "仅支持当前 GitHub 仓库的发布地址", null)
+                    } else {
+                        try {
+                            startActivity(Intent(Intent.ACTION_VIEW, uri).addCategory(Intent.CATEGORY_BROWSABLE))
+                            result.success(null)
+                        } catch (_: ActivityNotFoundException) { result.error("NO_BROWSER", "没有可用的浏览器", null) }
+                        catch (_: Exception) { result.error("OPEN_FAILED", "无法打开浏览器", null) }
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
         PdfService(this).register(MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "saisuite/pdf"))
         mediaService = MediaService(this)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "saisuite/media").setMethodCallHandler { call, result -> mediaService!!.handle(call, result) }

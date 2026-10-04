@@ -1,6 +1,6 @@
 # 验收记录
 
-当前版本为 v1.3.1，共 60 项工具，最新验证见文末。以下各版本记录保留当时的范围与证据；已移除功能不计入当前工具数量。
+当前版本为 v1.4.0，共 60 项工具，最新验证见文末。以下各版本记录保留当时的范围与证据；已移除功能不计入当前工具数量。
 
 ## v1.0.0 验收记录
 
@@ -300,3 +300,27 @@
 按用户最新要求，默认开发、设备集成测试和安装包检查改用 Android 16（API 36），取代此前默认 Android 13 的约定。已安装官方 `system-images;android-36;google_apis;x86_64`，创建并启动 `SaiSuite_API_36`（当前 `emulator-5558`）。设备读数确认 SDK 36、Android 16。
 
 现有 v1.3.1 x86_64 正式包安装成功，versionCode 4008，启动状态为 `ok`，首页显示 60 个工具。本轮仅检查环境、安装与启动，未重复完整功能测试；此前 Android 13 的检查记录保留。证据：`.buildlog/api36-home.xml`。应用 minSdk 24、targetSdk/compileSdk 36 保持不变，没有重新打包。
+
+
+## v1.4.0 GitHub 更新检查（2026-10-04）
+
+新增应用更新区域，默认开启自动检查，可在设置关闭并保存到下次启动；手动检查始终可用。启动或返回应用时按 24 小时节流请求 GitHub 正式 Release，网络失败不阻塞工具使用。发现新版本后显示说明，并通过浏览器打开与当前安装包同分发类型的 APK；不自动下载安装，不将独立架构包回退为较低 versionCode 的 Universal。详见 [更新与发布说明](UPDATES.md)。仍为 60 个工具。
+
+- `flutter analyze` 无问题，**117 项单元/界面测试全部通过**。新增 10 项更新测试覆盖数值版本比较、构建号、正式发布过滤、四种附件匹配、错误/缺失地址、HTTP 404/403/429/500/重定向、超限及损坏响应、连接异常、开关保存、24 小时节流、缓存恢复、异步退出、320 px 窄屏和手动重试。
+- Android 16 / API 36 更新综合集成测试 **1 项通过**，检查真实包版本桥、关闭时不请求、手动查询、合成新版本说明、缓存/设置恢复、原生非法地址拒绝，以及真实 GitHub API 请求。合成 v9.0.0 仅存在于测试，未发布公开测试 Release。
+- API 36 模拟器窗口打开后，从 v1.3.1 x86_64（4008）覆盖升级至 v1.4.0（4009）成功，既有摩尔质量收藏保留。正式包默认开关为开启；实际关闭、强停再启动后仍关闭；关闭时手动检查正常完成。最后将测试设备开关恢复为开启。
+- 本轮查询时公开仓库 wxia529/SaiSuite 尚无正式 Release，实际界面正确显示“GitHub 暂无正式发布版本”。首次 Release 说明已准备在 `docs/releases/v1.4.0.md`，未公开发布或推送源码；真实新版本下载及覆盖安装待后续正式 Release 再验证，本轮已验证版本识别和同架构链接选择。
+- 原生 PDF、媒体、传感器与计时实现未修改，本轮未重复它们的完整设备集成测试。
+
+正式包新增 INTERNET 权限用于 HTTPS 更新检查，没有 REQUEST_INSTALL_PACKAGES 或广泛文件读取权限，也没有新增第三方依赖。四包均为 minSdk 24、targetSdk/compileSdk 36，沿用原签名证书。独立包各含对应单一 ABI，其公共代码/资源及对应原生库逐项 SHA-256 与 Universal 相同。
+
+| APK | 字节 | MiB | versionCode | SHA-256 |
+|---|---:|---:|---:|---|
+| SaiSuite-1.4.0-universal.apk | 72,082,944 | 68.74 | 9 | `3573826bd34bfc15cad93d19f989edb0b8c4cfda2df69bff59d6edba551540bf` |
+| SaiSuite-1.4.0-arm64-v8a.apk | 34,652,062 | 33.05 | 2009 | `50bd1de5cedf3871b4cc4831317aac3807e05403f16f5e0e586c4298e2f2c5c9` |
+| SaiSuite-1.4.0-armeabi-v7a.apk | 32,175,466 | 30.68 | 1009 | `1a907a9b87528ee8caf7b620113778080debbfeeaa13d009ace356c9561f7f01` |
+| SaiSuite-1.4.0-x86_64.apk | 36,135,838 | 34.46 | 4009 | `9a54e5c2b0f98ddcd219b1c6954cbd0737a4beca73f0049b255cd36bb5a34614` |
+
+校验汇总 `dist/SHA256SUMS.txt`；v1.3.1 四包与 `dist/1.3.1-SHA256SUMS.txt` 保留。验证日志：`.buildlog/1.4.0-tests.log`、`1.4.0-analyze.log`、`1.4.0-update-integration.log`、`1.4.0-build-*.log`、`1.4.0-split-inspection.json`。实际开关和升级证据：`1.4.0-{before,after}-upgrade.xml`、`1.4.0-update-{settings,off,off-restart,manual-off}.xml`。
+
+![GitHub 更新设置](images/v1.4-updates.png)

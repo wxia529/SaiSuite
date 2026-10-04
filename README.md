@@ -1,6 +1,6 @@
 # SaiSuite · 赛赛工具箱
 
-Android 工具箱，Flutter + Dart + Material 3。v1.3.1 共 **60 项工具**：36 个基础工具、9 个电化学扩展，加上 14 个创作、设备与电解液工具，以及中英数字空格清理。
+Android 工具箱，Flutter + Dart + Material 3。v1.4.0 共 **60 项工具**：36 个基础工具、9 个电化学扩展，加上 14 个创作、设备与电解液工具，以及中英数字空格清理。
 
 - PDF：合并、拆分、提取、整理、旋转、图片互转、水印、密码处理、文本提取、文档信息，共 12 项。
 - 日常计算 6 项、文本开发 9 项、基础科研计算 6 项、日期时间 4 项。
@@ -11,22 +11,23 @@ Android 工具箱，Flutter + Dart + Material 3。v1.3.1 共 **60 项工具**：
 - 取色器提供定位圆环和像素放大镜，画板可全屏，PDF 水印按内容、样式、页面分区。
 - 新科研工具不自动保存实验数据，支持主动导出与未导出退出提示。统一搜索、分类、入口收藏与三种主题继续保留。
 - v1.3 重做计算器、单位转换、随机选择、二维码、番茄钟、视频和指南针；画板铺满可用区域，作品比例自适应。
-
 - v1.3.1 删除循环数据分析、锂金属测试分析、电流积分与容量、梯度配方，科研栏目聚焦配液与装电池的快速计算。
+- v1.4 新增 GitHub 自动更新检查，设置可关闭，保留手动检查与同架构 APK 下载入口。
 
 每次正式交付同时保留 **Universal 通用包和三种独立架构包**，当前四种版本都在 `dist/`：
 
 | 版本 | 文件 | 大小 |
 |---|---|---:|
-| Universal（三种架构） | SaiSuite-1.3.1-universal.apk | 67.95 MiB |
-| ARM64 | SaiSuite-1.3.1-arm64-v8a.apk | 32.80 MiB |
-| ARM32 | SaiSuite-1.3.1-armeabi-v7a.apk | 30.39 MiB |
-| x86_64 | SaiSuite-1.3.1-x86_64.apk | 34.21 MiB |
+| Universal（三种架构） | SaiSuite-1.4.0-universal.apk | 68.74 MiB |
+| ARM64 | SaiSuite-1.4.0-arm64-v8a.apk | 33.05 MiB |
+| ARM32 | SaiSuite-1.4.0-armeabi-v7a.apk | 30.68 MiB |
+| x86_64 | SaiSuite-1.4.0-x86_64.apk | 34.46 MiB |
 
 按设备支持的 CPU 架构选一个安装，四种版本功能相同；不确定架构时使用 Universal。校验值在 `dist/SHA256SUMS.txt`。签名密钥与构建产物不提交到 Git。Android 包名：`io.github.wxia529.saisuite`。
 
 ## 文档
 
+- [更新检查与 GitHub 发布](docs/UPDATES.md)：自动检查规则、版本号和四包发布步骤。
 - [v1.3.1 范围调整](docs/V1_3_1_GUIDE.md)：移除的工具、升级处理与当前科研功能。
 - [v1.3 使用说明](docs/V1_3_GUIDE.md)：八个常用工具新版界面、时间轴、适配画布与指南针。
 - [v1.2 使用说明](docs/V1_2_GUIDE.md)：图片独立工作台、五色配色、放大取色、全屏画板与水印分区。
@@ -49,6 +50,7 @@ flutter analyze
 flutter test
 flutter test integration_test/pdf_test.dart -d emulator-5558
 flutter test integration_test/tools_test.dart -d emulator-5558
+flutter test integration_test/updates_test.dart -d emulator-5558
 flutter build apk --release
 ```
 

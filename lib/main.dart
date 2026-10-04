@@ -6,6 +6,7 @@ import 'package:timezone/data/latest.dart' as tzdata;
 
 import 'core/app_state.dart';
 import 'core/files.dart';
+import 'core/updates.dart';
 import 'app/sai_app.dart';
 
 Future<void> main() async {
@@ -23,5 +24,7 @@ Future<void> main() async {
   });
   final state = AppState(await SharedPreferences.getInstance());
   await state.migrateRetiredTools();
-  runApp(SaiApp(state: state));
+  runApp(
+    SaiApp(state: state, updates: UpdateController(state, GitHubUpdates())),
+  );
 }

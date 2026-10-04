@@ -1,6 +1,6 @@
 # 构建与签名
 
-记录日期：2026-10-04，版本 `1.3.1+8`，包名 `io.github.wxia529.saisuite`。
+记录日期：2026-10-04，版本 `1.4.0+9`，包名 `io.github.wxia529.saisuite`。
 
 ## 已验证工具链
 
@@ -16,7 +16,7 @@
 | 默认测试设备 | `SaiSuite_API_36` 模拟器，Android 16 / API 36，x86_64，WHPX |
 | 既往验收设备 | Medium Phone 模拟器，Android 17 / API 37，x86_64，WHPX |
 
-依赖锁定于 `pubspec.lock`。首次构建需要网络下载 SDK、Maven 和 Pub 依赖；应用运行不需要联网。最终 APK 验证 minSdk 24（Android 7.0）、targetSdk 36，三种 ABI。正式 manifest 没有 INTERNET 或广泛文件访问权限，文件通过系统授权 URI 读取和保存。
+依赖锁定于 `pubspec.lock`。首次构建需要网络下载 SDK、Maven 和 Pub 依赖；计算及文件工具继续处理设备上的输入；GitHub 更新检查需要联网，可在设置关闭。最终 APK 验证 minSdk 24（Android 7.0）、targetSdk 36，三种 ABI。正式 manifest 添加 INTERNET 权限供 HTTPS 更新检查使用，没有广泛文件访问权限，文件通过系统授权 URI 读取和保存。
 
 ## 签名保管
 
@@ -45,12 +45,13 @@ flutter analyze
 flutter test
 flutter test integration_test/pdf_test.dart -d emulator-5558
 flutter test integration_test/tools_test.dart -d emulator-5558
+flutter test integration_test/updates_test.dart -d emulator-5558
 flutter build apk --release
 ```
 
 最后一步不要在刚运行过设备集成测试后直接加 `--no-pub`：测试入口曾导致生成的插件注册文件包含 integration_test，而 release 不编译该测试插件。正常依赖准备会重新生成正确注册文件。
 
-APK 输出 `build/app/outputs/flutter-apk/app-release.apk`，交付副本 `dist/SaiSuite-1.3.1-universal.apk`。默认 APK 包含 arm64-v8a、armeabi-v7a 与 x86_64。需要独立架构包可另外执行 `flutter build apk --release --split-per-abi`。
+APK 输出 `build/app/outputs/flutter-apk/app-release.apk`，交付副本 `dist/SaiSuite-1.4.0-universal.apk`。默认 APK 包含 arm64-v8a、armeabi-v7a 与 x86_64。需要独立架构包可另外执行 `flutter build apk --release --split-per-abi`。
 
 交付要求：Universal 与独立架构包同时提供。每次更新先构建并复制保存 Universal，再构建并保存三种独立包，不用独立包替代通用包；四种包来自同一份源码、同一版本号和同一签名密钥，并更新全部校验值。
 
@@ -64,25 +65,25 @@ flutter build apk --release --split-per-abi
 
 | ABI | dist 文件 | 大小 | versionCode |
 |---|---|---:|---:|
-| arm64-v8a | SaiSuite-1.3.1-arm64-v8a.apk | 34,389,634 字节 / 32.80 MiB | 2008 |
-| armeabi-v7a | SaiSuite-1.3.1-armeabi-v7a.apk | 31,863,886 字节 / 30.39 MiB | 1008 |
-| x86_64 | SaiSuite-1.3.1-x86_64.apk | 35,873,406 字节 / 34.21 MiB | 4008 |
+| arm64-v8a | SaiSuite-1.4.0-arm64-v8a.apk | 34,652,062 字节 / 33.05 MiB | 2009 |
+| armeabi-v7a | SaiSuite-1.4.0-armeabi-v7a.apk | 32,175,466 字节 / 30.68 MiB | 1009 |
+| x86_64 | SaiSuite-1.4.0-x86_64.apk | 36,135,838 字节 / 34.46 MiB | 4009 |
 
-Flutter 输出文件名是 `app-<ABI>-release.apk`，交付时复制到上表名称。三包与通用包采用同一签名证书，versionName 均为 1.3.1，compileSdk/targetSdk 为 36，minSdk 为 24。每包只包含对应 ABI；公共代码、资源与对应原生库经 SHA-256 比对，与通用包完全相同。
+Flutter 输出文件名是 `app-<ABI>-release.apk`，交付时复制到上表名称。三包与通用包采用同一签名证书，versionName 均为 1.4.0，compileSdk/targetSdk 为 36，minSdk 为 24。每包只包含对应 ABI；公共代码、资源与对应原生库经 SHA-256 比对，与通用包完全相同。
 
-Flutter 的独立包默认加入 ABI 对应的 versionCode 偏移，因此数值不同于通用包的 8。同架构后续独立包继续增加基础 build number；若改为通用包覆盖已经安装的独立包，通用包 versionCode 必须高于已安装包。当前模拟器安装的是 x86_64 包，versionCode 4008，后续直接安装 versionCode 8 的通用包会被视为降级。
+Flutter 的独立包默认加入 ABI 对应的 versionCode 偏移，因此数值不同于通用包的 9。同架构后续独立包继续增加基础 build number；若改为通用包覆盖已经安装的独立包，通用包 versionCode 必须高于已安装包。当前模拟器安装的是 x86_64 包，versionCode 4009，后续直接安装 versionCode 9 的通用包会被视为降级。
 
-本轮删除四个科研工具，未引入新的媒体架构库或 FFmpeg。四包大小见 README 和验收记录。
+本轮新增 GitHub 更新检查，使用 Dart HttpClient 和 Android 浏览器 Intent，没有新增第三方依赖。四包大小见 README 和验收记录。
 
 每个 APK 有同名 `.sha256` 文件，另汇总到 `dist/SHA256SUMS.txt`；架构、签名与安装检查见验收记录。
 
 ```powershell
-adb install -r dist/SaiSuite-1.3.1-universal.apk
+adb install -r dist/SaiSuite-1.4.0-universal.apk
 adb shell am start -n io.github.wxia529.saisuite/.MainActivity
-Get-FileHash dist/SaiSuite-1.3.1-universal.apk -Algorithm SHA256
+Get-FileHash dist/SaiSuite-1.4.0-universal.apk -Algorithm SHA256
 ```
 
-debug 使用独立包名 `io.github.wxia529.saisuite.dev`，名称为「赛赛工具箱（测试）」，正式签名仍沿用原密钥。设备集成测试运行器可能在清理阶段卸载包，应使用专用测试模拟器；不要在装有用户正式数据的设备上运行集成测试。v1.1.0 的正式包安装在集成测试之后执行；v1.3.1 从已安装的 v1.3.0 x86_64 包覆盖升级验收。
+debug 使用独立包名 `io.github.wxia529.saisuite.dev`，名称为「赛赛工具箱（测试）」，正式签名仍沿用原密钥。设备集成测试运行器可能在清理阶段卸载包，应使用专用测试模拟器；不要在装有用户正式数据的设备上运行集成测试。v1.1.0 的正式包安装在集成测试之后执行；v1.4.0 在默认 Android 16 / API 36 模拟器上从已安装的 v1.3.1 x86_64 包覆盖升级验收。
 
 ## 本机问题与处理
 
