@@ -1,15 +1,23 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
 import '../core/palette.dart';
 import '../core/engine.dart';
+import '../core/files.dart';
 import 'catalog.dart';
 import 'workbench.dart';
 
 class PalettePage extends StatefulWidget {
-  const PalettePage({super.key, required this.tool, required this.state});
+  const PalettePage({
+    super.key,
+    required this.tool,
+    required this.state,
+    this.initialColors,
+  });
+  final List<Color>? initialColors;
   final ToolSpec tool;
   final AppState state;
   @override
@@ -23,6 +31,148 @@ class _PalettePageState extends State<PalettePage> {
   Color color = const Color(0xff147d73);
   List<Color>? preset;
   String? error;
+  final locked = List<bool>.filled(8, false);
+  int colorCount = 5;
+  bool exporting = false;
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialColors != null && widget.initialColors!.isNotEmpty) {
+      preset = List.of(widget.initialColors!.take(8));
+      colorCount = preset!.length;
+      title = '照片主色';
+      color = preset!.first;
+      input.text = encoded(color);
+    }
+  }
+
+  List<Color> get currentColors =>
+      preset ?? designPalette(color, kind).take(colorCount).toList();
+  void randomize() {
+    final generated = randomPalette(random);
+    final old = currentColors;
+    setState(() {
+      preset = List.generate(colorCount, (i) {
+        if (locked[i] && i < old.length) return old[i];
+        final base = generated.colors[i % generated.colors.length];
+        if (i < generated.colors.length) return base;
+        final hsl = HSLColor.fromColor(base);
+        return hsl
+            .withHue((hsl.hue + 25) % 360)
+            .withLightness((hsl.lightness + .12).clamp(.08, .92))
+            .toColor();
+      });
+      color = preset!.first;
+      input.text = encoded(color);
+      title = '随机灵感';
+      error = null;
+    });
+  }
+
+  Future<void> editColor(int index) async {
+    final controller = TextEditingController(
+      text: hexColor(currentColors[index]),
+    );
+    String? invalid;
+    final chosen = await showDialog<Color>(
+      context: context,
+      builder: (c) => StatefulBuilder(
+        builder: (c, refresh) => AlertDialog(
+          title: const Text('调整单色'),
+          content: TextField(
+            controller: controller,
+            decoration: InputDecoration(
+              labelText: 'HEX 色值',
+              errorText: invalid,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(c),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () {
+                try {
+                  final value = runTool('T08', {
+                    '格式': 'HEX',
+                    '颜色': controller.text,
+                  });
+                  Navigator.pop(c, parseHex(value.split('\n').first));
+                } on FormatException catch (e) {
+                  refresh(() => invalid = e.message.toString());
+                }
+              },
+              child: const Text('应用'),
+            ),
+          ],
+        ),
+      ),
+    );
+    // Wait for the closing animation before disposing the dialog field.
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    controller.dispose();
+    if (chosen != null && mounted) {
+      setState(() {
+        preset = List.of(currentColors);
+        preset![index] = chosen;
+      });
+    }
+  }
+
+  Future<void> exportCard() async {
+    setState(() => exporting = true);
+    try {
+      final colors = currentColors, recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder), height = colors.length * 160 + 80;
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, 960, height.toDouble()),
+        Paint()..color = Colors.white,
+      );
+      for (var i = 0; i < colors.length; i++) {
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(40, 40 + i * 160, 300, 136),
+            const Radius.circular(18),
+          ),
+          Paint()..color = colors[i],
+        );
+        final c = colors[i];
+        final text = TextPainter(
+          text: TextSpan(
+            text:
+                '${hexColor(c)}\nRGB ${(c.r * 255).round()}, ${(c.g * 255).round()}, ${(c.b * 255).round()}',
+            style: const TextStyle(
+              color: Colors.black,
+              fontSize: 30,
+              height: 1.6,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout(maxWidth: 560);
+        text.paint(canvas, Offset(380, 60 + i * 160.0));
+        text.dispose();
+      }
+      final picture = recorder.endRecording();
+      final output = await picture.toImage(960, height);
+      try {
+        final data = (await output.toByteData(format: ui.ImageByteFormat.png))!;
+        final uri = await Files.saveBytes(
+          data.buffer.asUint8List(),
+          'saisuite-palette.png',
+        );
+        if (uri != null && mounted) message(context, '色卡已导出');
+      } finally {
+        output.dispose();
+        picture.dispose();
+      }
+    } catch (e) {
+      if (mounted) message(context, '色卡导出失败：$e');
+    } finally {
+      if (mounted) setState(() => exporting = false);
+    }
+  }
+
   @override
   void dispose() {
     input.dispose();
@@ -35,6 +185,8 @@ class _PalettePageState extends State<PalettePage> {
       setState(() {
         color = parseHex(output.split('\n').first);
         preset = null;
+        colorCount = 5;
+        locked.fillRange(0, 8, false);
         title = '你的配色';
         error = null;
       });
@@ -54,7 +206,9 @@ class _PalettePageState extends State<PalettePage> {
 
   void usePreset(PalettePreset p, {bool generated = false}) => setState(() {
     color = p.colors.first;
-    preset = p.colors;
+    preset = List.of(p.colors);
+    colorCount = preset!.length;
+    locked.fillRange(0, 8, false);
     error = null;
     if (generated) kind = p.name;
     title = generated ? '随机灵感' : p.name;
@@ -79,7 +233,7 @@ class _PalettePageState extends State<PalettePage> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = preset ?? designPalette(color, kind);
+    final colors = currentColors;
     return Workbench(
       tool: widget.tool,
       state: widget.state,
@@ -102,8 +256,7 @@ class _PalettePageState extends State<PalettePage> {
             ),
             FilledButton.tonalIcon(
               key: const ValueKey('random-palette'),
-              onPressed: () =>
-                  usePreset(randomPalette(random), generated: true),
+              onPressed: randomize,
               icon: const Icon(Icons.casino_outlined),
               label: const Text('随机灵感'),
             ),
@@ -112,7 +265,35 @@ class _PalettePageState extends State<PalettePage> {
         const SizedBox(height: 20),
         strip(colors, 110),
         const SizedBox(height: 12),
-        const Text('一组五色，从主色到点缀与留白。点按下方色卡复制。'),
+        const Text('锁定喜欢的颜色，再随机其余颜色。长按拖动换位，点按色值复制。'),
+        Row(
+          children: [
+            const Text('颜色数量'),
+            const Spacer(),
+            IconButton(
+              tooltip: '减少颜色',
+              onPressed: colorCount <= 2
+                  ? null
+                  : () => setState(() {
+                      preset = List.of(colors)..removeLast();
+                      colorCount--;
+                      locked[colorCount] = false;
+                    }),
+              icon: const Icon(Icons.remove),
+            ),
+            Text('$colorCount'),
+            IconButton(
+              tooltip: '增加颜色',
+              onPressed: colorCount >= 8
+                  ? null
+                  : () => setState(() {
+                      preset = [...colors, randomPalette(random).colors.first];
+                      colorCount++;
+                    }),
+              icon: const Icon(Icons.add),
+            ),
+          ],
+        ),
         const SizedBox(height: 16),
         LayoutBuilder(
           builder: (_, box) {
@@ -124,38 +305,82 @@ class _PalettePageState extends State<PalettePage> {
             return Wrap(
               spacing: 10,
               runSpacing: 10,
-              children: colors
-                  .map(
-                    (c) => SizedBox(
-                      width: (box.maxWidth - (count - 1) * 10) / count,
-                      child: Card(
-                        margin: EdgeInsets.zero,
-                        clipBehavior: Clip.antiAlias,
-                        child: InkWell(
-                          onTap: () => copyResult(context, hexColor(c)),
-                          child: Column(
-                            children: [
-                              SizedBox(
-                                height: 62,
-                                width: double.infinity,
-                                child: ColoredBox(color: c),
+              children: colors.indexed.map((entry) {
+                final (index, c) = entry;
+                return SizedBox(
+                  width: (box.maxWidth - (count - 1) * 10) / count,
+                  child: DragTarget<int>(
+                    onWillAcceptWithDetails: (d) => d.data != index,
+                    onAcceptWithDetails: (d) => setState(() {
+                      preset = List.of(colors);
+                      final old = preset![index];
+                      preset![index] = preset![d.data];
+                      preset![d.data] = old;
+                      final lock = locked[index];
+                      locked[index] = locked[d.data];
+                      locked[d.data] = lock;
+                    }),
+                    builder: (context, candidate, rejected) =>
+                        LongPressDraggable<int>(
+                          data: index,
+                          feedback: SizedBox(
+                            width: 80,
+                            height: 80,
+                            child: ColoredBox(color: c),
+                          ),
+                          child: Card(
+                            margin: EdgeInsets.zero,
+                            clipBehavior: Clip.antiAlias,
+                            child: InkWell(
+                              onTap: () => copyResult(context, hexColor(c)),
+                              child: Column(
+                                children: [
+                                  SizedBox(
+                                    height: 62,
+                                    width: double.infinity,
+                                    child: ColoredBox(color: c),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                    child: Text(
+                                      hexColor(c),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelLarge,
+                                    ),
+                                  ),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      IconButton(
+                                        tooltip: '锁定颜色 ${index + 1}',
+                                        onPressed: () => setState(
+                                          () => locked[index] = !locked[index],
+                                        ),
+                                        icon: Icon(
+                                          locked[index]
+                                              ? Icons.lock
+                                              : Icons.lock_open,
+                                          size: 20,
+                                        ),
+                                      ),
+                                      IconButton(
+                                        tooltip: '调整颜色 ${index + 1}',
+                                        onPressed: () => editColor(index),
+                                        icon: const Icon(Icons.tune, size: 20),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 12,
-                                ),
-                                child: Text(
-                                  hexColor(c),
-                                  style: Theme.of(context).textTheme.labelLarge,
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                  )
-                  .toList(),
+                  ),
+                );
+              }).toList(),
             );
           },
         ),
@@ -166,6 +391,11 @@ class _PalettePageState extends State<PalettePage> {
           label: const Text('复制整组配色'),
         ),
         const SizedBox(height: 20),
+        OutlinedButton.icon(
+          onPressed: exporting ? null : exportCard,
+          icon: const Icon(Icons.image_outlined),
+          label: const Text('导出带色值的色卡 PNG'),
+        ),
         Card(
           margin: EdgeInsets.zero,
           child: Padding(
@@ -204,6 +434,8 @@ class _PalettePageState extends State<PalettePage> {
                   onChanged: (s) => setState(() {
                     kind = s!;
                     preset = null;
+                    colorCount = 5;
+                    locked.fillRange(0, 8, false);
                     title = '你的配色';
                   }),
                 ),

@@ -2,9 +2,10 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 
 import '../core/app_state.dart';
+import '../core/platform_channel.dart';
 import 'catalog.dart';
 import 'workbench.dart';
 
@@ -18,7 +19,7 @@ class PomodoroPage extends StatefulWidget {
 
 class _PomodoroPageState extends State<PomodoroPage>
     with WidgetsBindingObserver {
-  static const channel = MethodChannel('saisuite/device');
+  static const channel = SaiChannel('saisuite/device');
   final focus = TextEditingController(text: '25'),
       short = TextEditingController(text: '5'),
       long = TextEditingController(text: '15'),
@@ -32,6 +33,9 @@ class _PomodoroPageState extends State<PomodoroPage>
   @override
   void initState() {
     super.initState();
+    if (defaultTargetPlatform == TargetPlatform.windows) {
+      notice = 'Windows 版支持最小化后提醒；关闭应用或电脑休眠时不能保证及时提醒。';
+    }
     WidgetsBinding.instance.addObserver(this);
     restore();
     ticker = Timer.periodic(const Duration(seconds: 1), (_) => tick());

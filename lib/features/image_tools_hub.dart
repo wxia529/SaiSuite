@@ -3,7 +3,12 @@ import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import 'catalog.dart';
 import 'media_page.dart';
+import 'image_editor_page.dart';
+import 'collage_page.dart';
 import 'workbench.dart';
+import 'image_studio_page.dart';
+import 'poster_page.dart';
+import 'recognition_page.dart';
 
 class ImageToolsHub extends StatelessWidget {
   const ImageToolsHub({super.key, required this.tool, required this.state});
@@ -14,17 +19,39 @@ class ImageToolsHub extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute<void>(
-        builder: (_) => MediaPage(
-          tool: ToolSpec(
-            tool.id,
-            title,
-            tool.category,
-            tool.description,
-            tool.icon,
-          ),
-          state: state,
-          imageAction: action,
-        ),
+        builder: (_) => action == ImageAction.transform
+            ? ImageEditorPage(
+                tool: ToolSpec(
+                  tool.id,
+                  title,
+                  tool.category,
+                  tool.description,
+                  tool.icon,
+                ),
+                state: state,
+              )
+            : action == ImageAction.collage
+            ? CollagePage(
+                tool: ToolSpec(
+                  tool.id,
+                  title,
+                  tool.category,
+                  tool.description,
+                  tool.icon,
+                ),
+                state: state,
+              )
+            : MediaPage(
+                tool: ToolSpec(
+                  tool.id,
+                  title,
+                  tool.category,
+                  tool.description,
+                  tool.icon,
+                ),
+                state: state,
+                imageAction: action,
+              ),
       ),
     );
   }
@@ -113,8 +140,8 @@ class ImageToolsHub extends StatelessWidget {
       const SizedBox(height: 16),
       entry(
         context,
-        '裁剪与旋转',
-        '裁剪范围、旋转方向、水平翻转',
+        '图片编辑',
+        '全屏裁剪、调色、标注与马赛克',
         Icons.crop_rotate,
         ImageAction.transform,
         const Color(0xff147d73),
@@ -148,6 +175,35 @@ class ImageToolsHub extends StatelessWidget {
         ImageAction.collage,
         const Color(0xff9b5a7e),
       ),
+      const SizedBox(height: 20),
+      Text('图片创作与识别', style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: 12),
+      ...tools
+          .where((t) => t.id.startsWith('B') && t.id != 'B10')
+          .map(
+            (t) => Card(
+              child: ListTile(
+                contentPadding: const EdgeInsets.all(16),
+                leading: Icon(
+                  t.icon,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                title: Text(t.name),
+                subtitle: Text(t.description),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => {'B04', 'B05'}.contains(t.id)
+                        ? PosterPage(tool: t, state: state)
+                        : {'B08', 'B09'}.contains(t.id)
+                        ? RecognitionPage(tool: t, state: state)
+                        : ImageStudioPage(tool: t, state: state),
+                  ),
+                ),
+              ),
+            ),
+          ),
     ],
   );
 }

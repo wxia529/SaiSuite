@@ -6,9 +6,11 @@ import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 
 import '../core/app_state.dart';
+import '../core/platform_channel.dart';
 import '../core/files.dart';
 import 'catalog.dart';
 import 'workbench.dart';
+import 'video_studio_preview.dart';
 import 'design_widgets.dart';
 
 enum ImageAction { transform, resize, watermark, collage }
@@ -28,7 +30,7 @@ class MediaPage extends StatefulWidget {
 }
 
 class _MediaPageState extends State<MediaPage> {
-  static const channel = MethodChannel('saisuite/media');
+  static const channel = SaiChannel('saisuite/media');
   final fields = <String, TextEditingController>{
     for (final entry in {
       '输出宽度 px': '1024',
@@ -343,6 +345,18 @@ class _MediaPageState extends State<MediaPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (info != null) ...[
+                VideoStudioPreview(
+                  key: ValueKey(paths.first),
+                  path: paths.first,
+                  start: start,
+                  end: end,
+                  frame: frame,
+                  frameMode: frameMode,
+                  disabled: busy,
+                  onFrame: (v) => setState(
+                    () => fields['截帧时间 s']!.text = v.toStringAsFixed(3),
+                  ),
+                ),
                 Text(
                   '${duration.toStringAsFixed(1)} 秒 · ${info!['width']} × ${info!['height']} px',
                   style: Theme.of(context).textTheme.titleMedium,

@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:saisuite/app/sai_app.dart';
 import 'package:saisuite/core/app_state.dart';
 import 'package:saisuite/core/updates.dart';
+import 'package:saisuite/features/catalog.dart';
 
 Map<String, dynamic> releaseJson({String tag = 'v1.5.0'}) {
   final name = ReleaseVersion.parse(tag).name;
@@ -102,6 +103,41 @@ class TestClient implements HttpClient {
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+  test('Windows updates prefer setup, fall back to ZIP and never offer APK', () {
+    const windows = InstalledApp('1.4.0', 9, 'windows-x64');
+    final json = releaseJson();
+    expect(GitHubRelease.parse(json).assetFor(windows), isNull);
+    (json['assets'] as List).add({
+      'name': 'SaiSuite-1.5.0-windows-x64.zip',
+      'size': 100000000,
+      'state': 'uploaded',
+      'browser_download_url':
+          'https://github.com/$githubRepository/releases/download/v1.5.0/SaiSuite-1.5.0-windows-x64.zip',
+    });
+    expect(
+      GitHubRelease.parse(json).assetFor(windows)?.name,
+      'SaiSuite-1.5.0-windows-x64.zip',
+    );
+    expect(
+      GitHubRelease.parse(json).assetFor(current)?.name,
+      'SaiSuite-1.5.0-x86_64.apk',
+    );
+    (json['assets'] as List).add({
+      'name': 'SaiSuite-1.5.0-windows-x64-setup.exe',
+      'size': 100000000,
+      'state': 'uploaded',
+      'browser_download_url':
+          'https://github.com/$githubRepository/releases/download/v1.5.0/SaiSuite-1.5.0-windows-x64-setup.exe',
+    });
+    expect(
+      GitHubRelease.parse(json).assetFor(windows)?.name,
+      'SaiSuite-1.5.0-windows-x64-setup.exe',
+    );
+    expect(
+      GitHubRelease.parse(json).assetFor(current)?.name,
+      'SaiSuite-1.5.0-x86_64.apk',
+    );
+  });
   test('versions compare numbers, ignore older releases and accept explicit newer build', () {
     expect(
       ReleaseVersion.parse('v1.10.0').compareTo(ReleaseVersion.parse('1.9.9')),
@@ -396,7 +432,7 @@ void main() {
     addTearDown(updates.dispose);
     await tester.pumpWidget(SaiApp(state: state, updates: updates));
     await tester.pumpAndSettle();
-    expect(find.text('浏览 60 个工具'), findsOneWidget);
+    expect(find.text('浏览 ${tools.length} 个工具'), findsOneWidget);
     await tester.tap(find.text('设置'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('无法连接 GitHub，请检查网络后重试'));

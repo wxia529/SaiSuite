@@ -1,6 +1,6 @@
 # GitHub Actions 与首次推送
 
-仓库：`wxia529/SaiSuite`；默认分支：`main`。当前发布版本为 `1.4.0+9`。
+仓库：`wxia529/SaiSuite`；默认分支：`main`。当前待发布版本为 `1.4.1+10`。
 
 ## 已配置的流程
 
@@ -60,11 +60,11 @@ git push -u origin main
 本地验证完成后，可手动运行 **Signed Android packages** 下载 artifact；正式发布直接创建并推送版本标签：
 
 ```powershell
-git tag -a 'v1.4.0+9' -m 'SaiSuite v1.4.0'
-git push origin 'v1.4.0+9'
+git tag -a 'v1.4.1+10' -m 'SaiSuite v1.4.1'
+git push origin 'v1.4.1+10'
 ```
 
-标签必须与 pubspec 版本和构建号完全一致，应用显示版本必须一致，且 `docs/releases/v1.4.0.md` 必须存在。标签必须指向实际构建源码提交，发布时也会核对；失败且尚未公开的旧标签可以重新指向修复提交再推送，已公开版本不覆盖。基础构建号限制在 1–999，以保持现有 ABI 版本码约定。后续发布必须增加基础构建号，且不能降低应用版本。
+标签必须与 pubspec 版本和构建号完全一致，应用显示版本必须一致，且 `docs/releases/v1.4.1.md` 必须存在。标签必须指向实际构建源码提交，发布时也会核对；失败且尚未公开的旧标签可以重新指向修复提交再推送，已公开版本不覆盖。基础构建号限制在 1–999，以保持现有 ABI 版本码约定。后续发布必须增加基础构建号，且不能降低应用版本。
 
 每次发布包含 `SaiSuite-版本-universal.apk`、`arm64-v8a.apk`、`armeabi-v7a.apk`、`x86_64.apk`，四份同名 `.apk.sha256` 和 `SHA256SUMS.txt`，共九个附件。校验包名、minSdk 24、targetSdk 36、各包版本码、原签名和实际原生架构后才上传。
 
@@ -96,3 +96,8 @@ SDK 修复后，云端构建 debug 包成功，PDF 测试在较小视口中访�
 首次四包云端构建及签名检查均通过，九个附件已上传至草稿。发布脚本现从认证的 Release 列表定位草稿，再按 Release ID 读取并检查附件；按 tag 的接口仅返回公开版本，不能用于读取草稿。15 项本地脚本测试覆盖此接口差异、已有草稿的恢复、附件缺失阻止发布和源码标签一致性。
 
 首次正式发布已完成：[v1.4.0+9](https://github.com/wxia529/SaiSuite/releases/tag/v1.4.0%2B9)，源码提交 `6306cf5`，[工作流 37184702400](https://github.com/wxia529/SaiSuite/actions/runs/37184702400) 全部成功。四个 APK、四份单包校验文件与 SHA256SUMS.txt 均公开可下载；匿名 `/releases/latest` 返回该版本，汇总校验值与 GitHub 上传文件的 SHA-256 摘要一致。云端包校验值与本机包分别保留，签名证书一致。
+
+
+## Windows 构建
+
+发布工作流增加 windows-2022 构建任务，准备嵌入式处理组件，以固定版本和哈希下载 Inno Setup 编译器，生成 SaiSuite-版本-windows-x64.zip、SaiSuite-版本-windows-x64-setup.exe 及各自的 SHA-256；仍不在 GitHub 运行应用测试。正式 tag 的 Android 与 Windows 构建都成功后，统一核对十三项文件并发布 Release，任一平台失败或文件缺失、校验错误则不发布。手动构建仅上传 artifacts。版本和标签约定不变。

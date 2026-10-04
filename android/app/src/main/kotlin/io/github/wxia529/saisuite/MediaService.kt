@@ -45,6 +45,49 @@ class MediaService(private val activity: Activity) {
                 mapOf("width" to options.outWidth,"height" to options.outHeight,"mime" to (options.outMimeType ?: "未知"),"orientation" to orientation,"bytes" to source.length())
             }
             "imageProcess" -> background(result) { processImage(call) }
+            "imagePrepareEditor" -> background(result) {
+                val path = call.argument<String>("path")!!
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeFile(input(path).path, bounds)
+                require(bounds.outMimeType in listOf("image/jpeg", "image/png", "image/webp")) { "请选择 JPEG、PNG 或 WebP 图片" }
+                require(bounds.outWidth.toLong() * bounds.outHeight <= 40_000_000) { "图片超过 4000 万像素，请先缩小尺寸" }
+                val bitmap = decoded(path)
+                try {
+                    val out = output("png")
+                    out.outputStream().use { require(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) { "图片准备失败" } }
+                    mapOf("path" to out.path, "width" to bitmap.width, "height" to bitmap.height)
+                } finally { bitmap.recycle() }
+            }
+            "imageEditorExport" -> background(result) {
+                val path = call.argument<String>("path")!!
+                val edge = call.argument<Number>("maxEdge")!!.toInt()
+                val quality = call.argument<Number>("quality")!!.toInt()
+                val format = call.argument<String>("format")!!
+                require(edge in 1..4096 && quality in 50..100 && format in listOf("JPEG", "PNG")) { "导出设置无效" }
+                val bitmaps = mutableListOf<Bitmap>()
+                try {
+                    // Generated editor PNGs can exceed the import file limit.
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    BitmapFactory.decodeFile(input(path).path, bounds)
+                    require(bounds.outMimeType == "image/png" && bounds.outWidth in 1..4098 && bounds.outHeight in 1..4098) { "编辑结果格式或尺寸无效" }
+                    var bitmap = requireNotNull(BitmapFactory.decodeFile(path)) { "无法读取编辑结果" }
+                    bitmaps.add(bitmap)
+                    val scale = minOf(1.0, edge.toDouble() / maxOf(bitmap.width, bitmap.height))
+                    if (scale < 1) {
+                        bitmap = Bitmap.createScaledBitmap(bitmap, maxOf(1, (bitmap.width * scale).toInt()), maxOf(1, (bitmap.height * scale).toInt()), true)
+                        bitmaps.add(bitmap)
+                    }
+                    if (format == "JPEG" && bitmap.hasAlpha()) {
+                        val opaque = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
+                        bitmaps.add(opaque)
+                        Canvas(opaque).apply { drawColor(Color.WHITE); drawBitmap(bitmap, 0f, 0f, null) }
+                        bitmap = opaque
+                    }
+                    val out = output(if (format == "PNG") "png" else "jpg")
+                    out.outputStream().use { require(bitmap.compress(if (format == "PNG") Bitmap.CompressFormat.PNG else Bitmap.CompressFormat.JPEG, quality, it)) { "图片导出失败" } }
+                    mapOf("path" to out.path, "width" to bitmap.width, "height" to bitmap.height, "bytes" to out.length())
+                } finally { bitmaps.distinct().forEach { it.recycle() } }
+            }
             "videoInfo" -> background(result) { videoInfo(input(call.argument<String>("path")!!)) }
             "videoFrame" -> background(result) {
                 val source = input(call.argument<String>("path")!!)
@@ -58,6 +101,22 @@ class MediaService(private val activity: Activity) {
                     requireNotNull(bitmap) { "无法解码视频帧" }
                     val file = output("png")
                     try { file.outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) } } finally { bitmap.recycle() }
+                    mapOf("path" to file.path, "bytes" to file.length())
+                } finally { retriever.release() }
+            }
+            "videoThumbnail" -> background(result) {
+                val retriever = MediaMetadataRetriever()
+                try {
+                    retriever.setDataSource(input(call.argument<String>("path")!!).path)
+                    val time = call.argument<Number>("seconds")!!.toDouble()
+                    val duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)!!.toDouble() / 1000
+                    require(time.isFinite() && time >= 0 && time < duration) { "缩略图时间须在视频时长内" }
+                    var frame = if (Build.VERSION.SDK_INT >= 27) retriever.getScaledFrameAtTime((time * 1000000).toLong(), MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 320, 180) else retriever.getFrameAtTime((time * 1000000).toLong(), MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                    requireNotNull(frame) { "无法生成视频缩略图" }
+                    val scale = minOf(1.0, 320.0 / maxOf(frame.width, frame.height))
+                    if (scale < 1) { val smaller = Bitmap.createScaledBitmap(frame, maxOf(1, (frame.width * scale).toInt()), maxOf(1, (frame.height * scale).toInt()), true); frame.recycle(); frame = smaller }
+                    val file = output("jpg")
+                    try { file.outputStream().use { check(frame.compress(Bitmap.CompressFormat.JPEG, 70, it)) } } finally { frame.recycle() }
                     mapOf("path" to file.path, "bytes" to file.length())
                 } finally { retriever.release() }
             }

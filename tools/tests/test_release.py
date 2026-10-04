@@ -97,6 +97,45 @@ class ReleaseChecks(unittest.TestCase):
         with self.assertRaises(ValueError):
             release.verify_checksums(self.root, "1.4.0")
 
+    def test_missing_or_tampered_windows_package_blocks_release(self):
+        self.make_assets(self.root / 'dist')
+        env = {'GH_REPO': 'wxia529/SaiSuite', 'RELEASE_TAG': 'v1.4.0+9', 'RELEASE_WINDOWS': 'true'}
+        with patch.object(release, 'ROOT', self.root), patch.object(release, 'version', return_value=('1.4.0', 9)), patch.dict(os.environ, env), patch.object(release.subprocess, 'run') as run:
+            with self.assertRaises(FileNotFoundError):
+                release.publish()
+            package = self.root / 'dist/SaiSuite-1.4.0-windows-x64.zip'
+            package.write_bytes(b'windows fixture')
+            package.with_suffix('.zip.sha256').write_text('incorrect checksum', encoding='ascii')
+            with self.assertRaisesRegex(ValueError, 'Windows package checksum'):
+                release.publish()
+            package.with_suffix('.zip.sha256').write_text(f'{release.digest(package)}  {package.name}\n', encoding='ascii')
+            with self.assertRaises(FileNotFoundError):
+                release.publish()
+            installer = self.root / 'dist/SaiSuite-1.4.0-windows-x64-setup.exe'
+            installer.write_bytes(b'installer fixture')
+            installer.with_suffix('.exe.sha256').write_text('incorrect checksum', encoding='ascii')
+            with self.assertRaisesRegex(ValueError, 'Windows package checksum'):
+                release.publish()
+            run.assert_not_called()
+
+    def test_windows_installer_and_zip_are_both_required_and_published(self):
+        dist = self.root / 'dist'
+        self.make_assets(dist)
+        for suffix in ('.zip', '-setup.exe'):
+            package = dist / f'SaiSuite-1.4.0-windows-x64{suffix}'
+            package.write_bytes(b'windows fixture')
+            package.with_suffix(package.suffix + '.sha256').write_text(f'{release.digest(package)}  {package.name}\n', encoding='ascii')
+        assets = list(dist.iterdir())
+        draft = {'id': 42, 'draft': True, 'assets': [{'name': p.name, 'size': p.stat().st_size, 'state': 'uploaded'} for p in assets]}
+        env = {'GH_REPO': 'wxia529/SaiSuite', 'RELEASE_TAG': 'v1.4.0+9', 'RELEASE_WINDOWS': 'true', 'GITHUB_SHA': 'a' * 40}
+        ref = {'object': {'type': 'commit', 'sha': 'a' * 40}}
+        with patch.object(release, 'ROOT', self.root), patch.object(release, 'version', return_value=('1.4.0', 9)), patch.dict(os.environ, env), patch.object(release, 'find_release', side_effect=[None, draft]), patch.object(release, 'github_get', side_effect=[None, ref, draft]), patch.object(release.subprocess, 'run') as run:
+            release.publish()
+        upload = run.call_args_list[1].args[0]
+        self.assertIn(str(dist / 'SaiSuite-1.4.0-windows-x64-setup.exe'), upload)
+        self.assertIn(str(dist / 'SaiSuite-1.4.0-windows-x64.zip'), upload)
+        self.assertEqual(len(assets), 13)
+
     def make_assets(self, folder):
         folder.mkdir(exist_ok=True)
         lines = []

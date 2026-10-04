@@ -11,6 +11,7 @@ import 'package:crypto/crypto.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../core/app_state.dart';
+import '../core/updates.dart' show appVersion;
 import '../core/engine.dart';
 import '../core/electrolyte.dart';
 import 'workbench.dart' show message;
@@ -176,7 +177,7 @@ class _ToolPageState extends State<ToolPage> {
     if (widget.tool.id == 'C05' || widget.tool.id == 'C06') return result ?? '';
     return jsonEncode({
       'app': 'SaiSuite',
-      'version': '1.4.0',
+      'version': appVersion,
       'tool': widget.tool.id,
       'name': widget.tool.name,
       'createdAt': DateTime.now().toUtc().toIso8601String(),

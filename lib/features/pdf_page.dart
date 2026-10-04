@@ -7,11 +7,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../core/app_state.dart';
+import '../core/platform_channel.dart';
 import '../core/engine.dart';
 import '../core/files.dart';
 import 'catalog.dart';
+import 'pdf_preview.dart';
 
-const pdfChannel = MethodChannel('saisuite/pdf');
+const pdfChannel = SaiChannel('saisuite/pdf');
 
 class PdfInput {
   PdfInput(this.path, this.name, this.password, this.info);
@@ -230,18 +232,57 @@ class _PdfPageState extends State<PdfPage> {
       textResult = null;
     });
   });
-  Future<String> preview(int page) {
+  Future<String> preview(int page, [int resolution = 50]) {
     final doc = current!;
-    final key = '${doc.path}:$page';
+    final key = '${doc.path}:$page:$resolution';
     return previews.putIfAbsent(key, () async {
       final path = (await native<String>('render', {
         'path': doc.path,
         'password': doc.password,
         'page': page,
-        'dpi': 50,
+        'dpi': resolution,
       }))!;
+      if (!mounted) {
+        await pdfChannel.invokeMethod<void>('cleanup', {
+          'paths': [path],
+        });
+        throw const FormatException('预览已关闭');
+      }
       temporary.add(path);
       return path;
+    });
+  }
+
+  Future<void> selectPages() async {
+    final pages = widget.tool.id == 'P04'
+        ? List<int>.of(order)
+        : List.generate(current!.count, (i) => i);
+    Set<int> selection = Set.of(List.generate(pages.length, (i) => i));
+    if (widget.tool.id != 'P04') {
+      try {
+        selection = parsePages(pageRange.text, current!.count).toSet();
+      } on FormatException {
+        selection = {};
+      }
+    }
+    final selected = await Navigator.push<List<int>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PdfPageGrid(
+          pages: pages,
+          load: (p, dpi) => preview(p, dpi),
+          initialSelection: selection,
+        ),
+      ),
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      if (widget.tool.id == 'P04') {
+        rememberOrder();
+        order = selected.map((i) => pages[i]).toList();
+      } else {
+        pageRange.text = selected.map((i) => '${i + 1}').join(',');
+      }
     });
   }
 
@@ -256,7 +297,8 @@ class _PdfPageState extends State<PdfPage> {
     textResult = null;
     if (imageMode) {
       if (images.isEmpty) throw const FormatException('先选择图片');
-      final m = double.tryParse(margin.text);
+      final originalSize = paper == '按图片尺寸';
+      final m = originalSize ? 0.0 : double.tryParse(margin.text);
       if (m == null || !m.isFinite || m < 0) {
         throw const FormatException('请输入有效边距');
       }
@@ -264,7 +306,7 @@ class _PdfPageState extends State<PdfPage> {
       final path = await native<String>('images', {
         'images': images,
         'paper': paper,
-        'landscape': landscape,
+        'landscape': !originalSize && landscape,
         'margin': m,
       });
       outputs.add(path!);
@@ -650,8 +692,10 @@ class _PdfPageState extends State<PdfPage> {
           ),
         ],
       ),
-      body: defaultTargetPlatform != TargetPlatform.android
-          ? const Center(child: Text('PDF 工作台在 Android 版提供。'))
+      body:
+          defaultTargetPlatform != TargetPlatform.android &&
+              defaultTargetPlatform != TargetPlatform.windows
+          ? const Center(child: Text('当前平台暂不支持 PDF 工作台。'))
           : Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 800),
@@ -736,6 +780,45 @@ class _PdfPageState extends State<PdfPage> {
                         ),
                       ),
                     if (current != null && widget.tool.id != 'P01') ...[
+                      Wrap(
+                        spacing: 12,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: busy
+                                ? null
+                                : () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => PdfFullPreview(
+                                        pages: List.generate(
+                                          current!.count,
+                                          (i) => i,
+                                        ),
+                                        load: (p, dpi) => preview(p, dpi),
+                                      ),
+                                    ),
+                                  ),
+                            icon: const Icon(Icons.fullscreen),
+                            label: const Text('全屏预览'),
+                          ),
+                          if ([
+                            'P02',
+                            'P03',
+                            'P04',
+                            'P05',
+                            'P07',
+                            'P08',
+                            'P11',
+                          ].contains(widget.tool.id))
+                            OutlinedButton.icon(
+                              onPressed: busy ? null : selectPages,
+                              icon: const Icon(Icons.grid_view),
+                              label: Text(
+                                widget.tool.id == 'P04' ? '网格选择保留页' : '网格选择页面',
+                              ),
+                            ),
+                        ],
+                      ),
                       Card(
                         child: ListTile(
                           title: Text(current!.name),
@@ -816,21 +899,35 @@ class _PdfPageState extends State<PdfPage> {
                         (v) => rotation = int.parse(v),
                       ),
                     if (imageMode) ...[
-                      dropdown('纸张', ['A4', 'Letter'], paper, (v) => paper = v),
-                      SwitchListTile(
-                        title: const Text('横向纸张'),
-                        value: landscape,
-                        onChanged: busy
-                            ? null
-                            : (v) => setState(() => landscape = v),
+                      dropdown(
+                        '页面尺寸',
+                        ['A4', 'Letter', '按图片尺寸'],
+                        paper,
+                        (v) => paper = v,
                       ),
-                      TextField(
-                        controller: margin,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
+                      if (paper == '按图片尺寸')
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          child: Text(
+                            '每张图片独立尺寸，不缩放、不裁剪、不加边距。保留原始像素，1 像素对应 1 PDF 点（72 dpi）；照片按拍摄方向显示。单张最多 1600 万像素，超限会提示，不会自动缩小。',
+                          ),
                         ),
-                        decoration: const InputDecoration(labelText: '边距 mm'),
-                      ),
+                      if (paper != '按图片尺寸')
+                        SwitchListTile(
+                          title: const Text('横向纸张'),
+                          value: landscape,
+                          onChanged: busy
+                              ? null
+                              : (v) => setState(() => landscape = v),
+                        ),
+                      if (paper != '按图片尺寸')
+                        TextField(
+                          controller: margin,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: const InputDecoration(labelText: '边距 mm'),
+                        ),
                     ],
                     if (widget.tool.id == 'P07') ...[
                       dropdown(

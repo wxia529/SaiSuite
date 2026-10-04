@@ -1,15 +1,23 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 
 class Files {
+  static Future<Directory> temporaryDirectory() async {
+    final base = await getTemporaryDirectory();
+    if (defaultTargetPlatform != TargetPlatform.windows) return base;
+    // path_provider returns the user's shared TEMP folder on Windows.
+    // Never clean arbitrary SaiSuite-named user files from that folder.
+    return Directory('${base.path}/SaiSuite-cache').create(recursive: true);
+  }
+
   static Future<void> cleanOldCache() async {
-    final dir = await getTemporaryDirectory();
+    final dir = await temporaryDirectory();
     await for (final entry in dir.list(followLinks: false)) {
       if (entry is File &&
           entry.uri.pathSegments.last.startsWith('saisuite_')) {
@@ -47,7 +55,7 @@ class Files {
     if (picked.uri.scheme != 'content') {
       throw const FormatException('只支持本地文件或系统文件提供器');
     }
-    final dir = await getTemporaryDirectory();
+    final dir = await temporaryDirectory();
     final ext = (picked.extension ?? 'bin').replaceAll(
       RegExp(r'[^a-zA-Z0-9]'),
       '',
@@ -79,7 +87,7 @@ class Files {
     Uint8List bytes,
     String name,
   ) async {
-    final dir = await getTemporaryDirectory(),
+    final dir = await temporaryDirectory(),
         file = File('${dir.path}/saisuite_share_$name');
     await file.writeAsBytes(bytes, flush: true);
     if (!context.mounted) return;

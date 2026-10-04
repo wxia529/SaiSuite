@@ -1,6 +1,6 @@
 # SaiSuite · 赛赛工具箱
 
-Android 工具箱，Flutter + Dart + Material 3。v1.4.0 共 **60 项工具**：36 个基础工具、9 个电化学扩展，加上 14 个创作、设备与电解液工具，以及中英数字空格清理。
+Android 与 Windows 工具箱，Flutter + Dart + Material 3。当前开发版 **1.4.1+10**，Android 共 **82 项工具**，Windows 共 **79 项工具**；本轮新增 22 个创作、文字与日常工作台。
 
 - PDF：合并、拆分、提取、整理、旋转、图片互转、水印、密码处理、文本提取、文档信息，共 12 项。
 - 日常计算 6 项、文本开发 9 项、基础科研计算 6 项、日期时间 4 项。
@@ -14,16 +14,16 @@ Android 工具箱，Flutter + Dart + Material 3。v1.4.0 共 **60 项工具**：
 - v1.3.1 删除循环数据分析、锂金属测试分析、电流积分与容量、梯度配方，科研栏目聚焦配液与装电池的快速计算。
 - v1.4 新增 GitHub 自动更新检查，设置可关闭，保留手动检查与同架构 APK 下载入口。
 
-每次正式交付同时保留 **Universal 通用包和三种独立架构包**，当前四种版本都在 `dist/`：
+每次交付同时保留 **Universal 通用包和三种独立架构包**，当前 1.4.1 开发包位于 `dist/development/1.4.1/android/`：
 
 | 版本 | 文件 | 大小 |
 |---|---|---:|
-| Universal（三种架构） | SaiSuite-1.4.0-universal.apk | 68.74 MiB |
-| ARM64 | SaiSuite-1.4.0-arm64-v8a.apk | 33.05 MiB |
-| ARM32 | SaiSuite-1.4.0-armeabi-v7a.apk | 30.68 MiB |
-| x86_64 | SaiSuite-1.4.0-x86_64.apk | 34.46 MiB |
+| Universal（三种架构） | SaiSuite-1.4.1-universal.apk | 115.20 MiB |
+| ARM32 | SaiSuite-1.4.1-armeabi-v7a.apk | 45.86 MiB |
+| ARM64 | SaiSuite-1.4.1-arm64-v8a.apk | 51.32 MiB |
+| x86_64 | SaiSuite-1.4.1-x86_64.apk | 53.39 MiB |
 
-按设备支持的 CPU 架构选一个安装，四种版本功能相同；不确定架构时使用 Universal。校验值在 `dist/SHA256SUMS.txt`。签名密钥与构建产物不提交到 Git。Android 包名：`io.github.wxia529.saisuite`。
+按设备支持的 CPU 架构选一个安装，四种版本功能相同；不确定架构时使用 Universal。同架构可覆盖升级；校验值在同目录 `SHA256SUMS.txt`。旧包保留。签名密钥与构建产物不提交到 Git。Android 包名：`io.github.wxia529.saisuite`。
 
 ## 文档
 
@@ -59,6 +59,13 @@ release 构建需要已备份的本地签名材料，见构建说明。运行设
 
 ## 代码
 
-`lib/features/catalog.dart` 注册 60 个工具；`lib/core/engine.dart` 和 `electrolyte.dart` 实现可测试的计算；各工作台负责即时输入和导出。Android 原生服务处理 PDF、媒体、传感器与计时通知。SharedPreferences 仅用于既有应用设置、入口收藏/最近使用、普通计算器历史，以及番茄钟状态和标尺校准。新科研输入/计算结果不写入实验数据库。
+`lib/features/catalog.dart` 注册 82 个工具；`lib/core/engine.dart` 和 `electrolyte.dart` 实现可测试的计算；各工作台负责即时输入和导出。Android 原生服务处理 PDF、媒体、传感器与计时通知。SharedPreferences 仅用于既有应用设置、入口收藏/最近使用、普通计算器历史，以及番茄钟状态和标尺校准。新科研输入/计算结果不写入实验数据库。
 
 当前交付为 Android 版。PDF 不提供 OCR、正文编辑、转 Word 或签名验证；复杂书签、表单、批注关系不保证在页面重组后完整保留。
+
+
+## Windows 桌面版
+
+新增的 22 个创作、文字与日常工作台见 [扩展功能说明](docs/CREATIVE_TOOLS.md)，包括 GIF、九格、渐变、文字卡片、OCR、拍照计数、音频提取与拼音。开发包单独放在 `dist/development/1.4.1/`，版本为 1.4.1+10。
+
+新增 Windows 10/11 x64 安装版与便携版，版本为 1.4.1+10。安装版运行 -setup.exe，中文向导支持选择目录、快捷方式和卸载；便携版解压完整 ZIP 后运行 saisuite.exe。79 项工具包含 PDF、图片、视频和电解液计算；手机传感器工具仅在 Android 提供。本轮开发包位于 `dist/development/1.4.1/`，上一轮包保留在 `dist/development/windows/`；构建与平台说明见 [Windows 文档](docs/WINDOWS.md)。下一次 tag 构建会同时产出 Android 和两种 Windows 包。

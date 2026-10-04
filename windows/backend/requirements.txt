@@ -1,0 +1,6 @@
+pypdf==6.19.0
+pypdfium2==5.13.0
+reportlab==5.0.1
+pillow==12.3.0
+pycryptodome==3.23.0
+charset-normalizer==3.5.2

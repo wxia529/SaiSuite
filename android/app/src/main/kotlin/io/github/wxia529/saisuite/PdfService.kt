@@ -3,6 +3,8 @@ package io.github.wxia529.saisuite
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -47,6 +49,7 @@ class PdfService(private val context: Context) {
                 try { val output = execute(call); handler.post { result.success(output) } }
                 catch (e: InvalidPasswordException) { handler.post { result.error("PASSWORD", "PDF 密码错误或需要打开密码", null) } }
                 catch (e: Exception) { handler.post { result.error("PDF_ERROR", e.message ?: "PDF 处理失败", null) } }
+                catch (e: OutOfMemoryError) { handler.post { result.error("PDF_MEMORY", "内存不足，请减少图片数量；原图未修改", null) } }
             }
         }
     }
@@ -79,6 +82,32 @@ class PdfService(private val context: Context) {
         options.inSampleSize = 1
         while (options.outWidth / options.inSampleSize > 4096 || options.outHeight / options.inSampleSize > 4096) options.inSampleSize *= 2
         return requireNotNull(BitmapFactory.decodeFile(path, options)) { "无法解码图片" }
+    }
+    private fun originalImage(path: String): Bitmap {
+        val file = File(path)
+        require(file.isFile && file.length() in 1..104857600) { "图片不能为空，且需小于 100 MB" }
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(path, bounds)
+        require(bounds.outWidth > 0 && bounds.outHeight > 0 && bounds.outMimeType in listOf("image/jpeg", "image/png")) { "请选择 JPEG 或 PNG 图片" }
+        require(bounds.outWidth.toLong() * bounds.outHeight <= 16_000_000 && maxOf(bounds.outWidth, bounds.outHeight) <= 14400) { "按图片尺寸支持单张最多 1600 万像素、长边最多 14400 px；未自动缩小图片" }
+        val original = requireNotNull(BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inSampleSize = 1; inScaled = false })) { "无法解码图片" }
+        try {
+            val orientation = try { ExifInterface(path).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL) } catch (_: Exception) { ExifInterface.ORIENTATION_NORMAL }
+            val matrix = Matrix()
+            when (orientation) {
+                ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.setScale(-1f, 1f)
+                ExifInterface.ORIENTATION_ROTATE_180 -> matrix.setRotate(180f)
+                ExifInterface.ORIENTATION_FLIP_VERTICAL -> matrix.setScale(1f, -1f)
+                ExifInterface.ORIENTATION_TRANSPOSE -> { matrix.setRotate(90f); matrix.postScale(-1f, 1f) }
+                ExifInterface.ORIENTATION_ROTATE_90 -> matrix.setRotate(90f)
+                ExifInterface.ORIENTATION_TRANSVERSE -> { matrix.setRotate(270f); matrix.postScale(-1f, 1f) }
+                ExifInterface.ORIENTATION_ROTATE_270 -> matrix.setRotate(270f)
+            }
+            if (matrix.isIdentity) return original
+            val oriented = Bitmap.createBitmap(original, 0, 0, original.width, original.height, matrix, false)
+            if (oriented !== original) original.recycle()
+            return oriented
+        } catch (e: Throwable) { original.recycle(); throw e }
     }
     private fun execute(call: MethodCall): Any? {
         when (call.method) {
@@ -133,17 +162,26 @@ class PdfService(private val context: Context) {
             "images" -> {
                 val paths = requireNotNull(call.argument<List<String>>("images"))
                 require(paths.isNotEmpty() && paths.size <= 100) { "每次支持 1—100 张图片" }
+                val originalSize = call.argument<String>("paper") == "按图片尺寸"
+                if (originalSize) {
+                    require(paths.sumOf { File(it).length() } <= 104857600) { "按图片尺寸的输入文件总量需小于 100 MB，请分批转换" }
+                }
                 val out = PDDocument()
+                var totalPixels = 0L
                 try {
                     for (path in paths) {
                         check()
-                        val bitmap = boundedImage(path)
+                        val bitmap = if (originalSize) originalImage(path) else boundedImage(path)
                         try {
+                            if (originalSize) {
+                                totalPixels += bitmap.width.toLong() * bitmap.height
+                                require(totalPixels <= 64_000_000) { "按图片尺寸每批最多 6400 万像素，请分批转换；未自动缩小图片" }
+                            }
                             val size = if (call.argument<String>("paper") == "Letter") PDRectangle.LETTER else PDRectangle.A4
                             val landscape = call.argument<Boolean>("landscape") ?: false
-                            val rectangle = if (landscape) PDRectangle(size.height, size.width) else size
+                            val rectangle = if (originalSize) PDRectangle(bitmap.width.toFloat(), bitmap.height.toFloat()) else if (landscape) PDRectangle(size.height, size.width) else size
                             val page = PDPage(rectangle); out.addPage(page)
-                            val margin = (call.argument<Number>("margin")?.toFloat() ?: 20f) * 72f / 25.4f
+                            val margin = if (originalSize) 0f else (call.argument<Number>("margin")?.toFloat() ?: 20f) * 72f / 25.4f
                             require(margin >= 0 && margin * 2 < min(rectangle.width, rectangle.height)) { "边距过大" }
                             val image = LosslessFactory.createFromImage(out, bitmap)
                             val scale = min((rectangle.width - 2 * margin) / bitmap.width, (rectangle.height - 2 * margin) / bitmap.height)

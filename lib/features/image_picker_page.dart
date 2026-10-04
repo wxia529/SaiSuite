@@ -1,14 +1,16 @@
 import 'dart:io';
 import 'dart:ui' as ui;
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:file_picker/file_picker.dart';
 
 import '../core/app_state.dart';
 import '../core/files.dart';
 import '../core/palette.dart';
+import '../core/dominant_colors.dart';
+import 'palette_page.dart';
 import 'catalog.dart';
 import 'workbench.dart';
 
@@ -29,6 +31,23 @@ class _ImagePickerPageState extends State<ImagePickerPage> {
   int? samplingPointer;
   String? error;
   final transform = TransformationController();
+  List<Color> dominant = [];
+  bool extracting = false;
+  Future<void> extract() async {
+    if (pixels == null) return;
+    setState(() => extracting = true);
+    try {
+      final sampled = pixels!;
+      final values = await compute(dominantColors, sampled);
+      if (mounted && identical(sampled, pixels)) {
+        setState(() => dominant = values.map(Color.new).toList());
+      }
+      if (values.isEmpty && mounted) message(context, '图片中没有足够的不透明像素');
+    } finally {
+      if (mounted) setState(() => extracting = false);
+    }
+  }
+
   @override
   void dispose() {
     image?.dispose();
@@ -71,6 +90,7 @@ class _ImagePickerPageState extends State<ImagePickerPage> {
           image = next;
           pixels = rgba.buffer.asUint8List();
           picked = null;
+          dominant = [];
           point = null;
           transform.value = Matrix4.identity();
         });
@@ -109,6 +129,41 @@ class _ImagePickerPageState extends State<ImagePickerPage> {
     tool: widget.tool,
     state: widget.state,
     children: [
+      if (image != null) ...[
+        OutlinedButton.icon(
+          onPressed: extracting || busy ? null : extract,
+          icon: const Icon(Icons.palette_outlined),
+          label: Text(extracting ? '正在提取主色' : '提取照片主色'),
+        ),
+        if (dominant.isNotEmpty) ...[
+          const Text('照片主色 · 按像素分布提取'),
+          Wrap(
+            spacing: 10,
+            children: [
+              for (final c in dominant)
+                ActionChip(
+                  avatar: CircleAvatar(backgroundColor: c),
+                  label: Text(hexColor(c)),
+                  onPressed: () => copyResult(context, hexColor(c)),
+                ),
+            ],
+          ),
+          TextButton.icon(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) => PalettePage(
+                  tool: tools.firstWhere((t) => t.id == 'A01'),
+                  state: widget.state,
+                  initialColors: dominant,
+                ),
+              ),
+            ),
+            icon: const Icon(Icons.arrow_forward),
+            label: const Text('用这组颜色打开配色助手'),
+          ),
+        ],
+      ],
       const Text('在取色模式中点按或拖动，圆环标出位置，旁边的放大镜显示原图像素。需要调整画面时切换缩放模式。'),
       const SizedBox(height: 12),
       FilledButton.icon(

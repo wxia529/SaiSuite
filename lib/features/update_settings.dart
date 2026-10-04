@@ -43,11 +43,17 @@ void showUpdateDetails(BuildContext context, UpdateController updates) {
                 '${asset.name}\n${(asset.size / 1048576).toStringAsFixed(2)} MB',
               )
             else
-              const Text('此版本暂未提供适配当前安装包的 APK，可前往发布页查看。'),
+              const Text('此版本暂未提供适配当前平台的安装包，可前往发布页查看。'),
             const SizedBox(height: 16),
             Text(release.notes.isEmpty ? '此版本没有填写更新说明。' : release.notes),
             const SizedBox(height: 16),
-            const Text('下载将在浏览器中打开。下载完成后，通过系统安装界面确认更新。'),
+            Text(
+              app.variant.startsWith('windows-')
+                  ? asset?.name.endsWith('-setup.exe') == true
+                        ? '下载完成后，关闭工具箱，运行安装程序并按向导完成更新。偏好设置会保留。'
+                        : '下载完成后，关闭工具箱，将 ZIP 解压到新文件夹，再运行 saisuite.exe。'
+                  : '下载将在浏览器中打开。下载完成后，通过系统安装界面确认更新。',
+            ),
           ],
         ),
       ),
@@ -64,7 +70,9 @@ void showUpdateDetails(BuildContext context, UpdateController updates) {
           FilledButton.icon(
             onPressed: () => openUpdateUrl(dialogContext, updates, asset.url),
             icon: const Icon(Icons.download_outlined),
-            label: const Text('下载 APK'),
+            label: Text(
+              app.variant.startsWith('windows-') ? '下载 Windows 版' : '下载 APK',
+            ),
           ),
       ],
     ),

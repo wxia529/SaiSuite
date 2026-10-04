@@ -17,6 +17,7 @@ import android.content.pm.PackageManager
 class MainActivity : FlutterActivity() {
     private var sensorService: SensorService? = null
     private var mediaService: MediaService? = null
+    private var creativeService: CreativeService? = null
     private var notificationResult: MethodChannel.Result? = null
     private fun timerIntent(label: String = "计时") = PendingIntent.getBroadcast(this, 73,
         Intent(this, TimerReceiver::class.java).putExtra("label", label), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
@@ -49,6 +50,8 @@ class MainActivity : FlutterActivity() {
             }
         }
         PdfService(this).register(MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "saisuite/pdf"))
+        creativeService = CreativeService(this)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "saisuite/creative").setMethodCallHandler { call, result -> creativeService!!.handle(call, result) }
         mediaService = MediaService(this)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "saisuite/media").setMethodCallHandler { call, result -> mediaService!!.handle(call, result) }
         sensorService = SensorService(this)
@@ -74,6 +77,7 @@ class MainActivity : FlutterActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if(requestCode==74) mediaService?.saved(resultCode,data)
+        if(requestCode==75) creativeService?.cameraSaved(resultCode)
     }
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)

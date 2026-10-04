@@ -3,14 +3,14 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 
 import 'app_state.dart';
+import 'platform_channel.dart';
 
-const appVersion = '1.4.0';
+const appVersion = '1.4.1';
 const githubRepository = 'wxia529/SaiSuite';
 const githubReleasesUrl = 'https://github.com/$githubRepository/releases';
-const updateChannel = MethodChannel('saisuite/updates');
+const updateChannel = SaiChannel('saisuite/updates');
 
 class ReleaseVersion implements Comparable<ReleaseVersion> {
   ReleaseVersion(this.major, this.minor, this.patch, [this.build]);
@@ -137,9 +137,18 @@ class GitHubRelease {
             version.build! > app.versionCode % 1000);
   }
 
-  ReleaseAsset? assetFor(InstalledApp app) => assets
-      .where((a) => a.name == 'SaiSuite-${version.name}-${app.variant}.apk')
-      .firstOrNull;
+  ReleaseAsset? assetFor(InstalledApp app) {
+    final base = 'SaiSuite-${version.name}-${app.variant}';
+    final names = app.variant.startsWith('windows-')
+        ? ['$base-setup.exe', '$base.zip']
+        : ['$base.apk'];
+    for (final name in names) {
+      final asset = assets.where((a) => a.name == name).firstOrNull;
+      if (asset != null) return asset;
+    }
+    return null;
+  }
+
   Map<String, dynamic> toJson() => {
     'tag_name': tag,
     'draft': false,

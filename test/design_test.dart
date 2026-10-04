@@ -12,7 +12,9 @@ import 'package:saisuite/core/palette.dart';
 import 'package:saisuite/features/catalog.dart';
 import 'package:saisuite/features/drawing_page.dart';
 import 'package:saisuite/features/image_tools_hub.dart';
+import 'package:saisuite/features/image_editor_page.dart';
 import 'package:saisuite/features/media_page.dart';
+import 'package:saisuite/features/collage_page.dart';
 import 'package:saisuite/features/palette_page.dart';
 import 'package:saisuite/features/pdf_page.dart';
 import 'package:saisuite/features/image_picker_page.dart';
@@ -135,6 +137,19 @@ void main() {
       ),
     );
     await tester.scrollUntilVisible(
+      find.text('图片编辑').hitTestable(),
+      150,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('图片编辑'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ImageEditorPage), findsOneWidget);
+    expect(find.text('选择图片开始编辑'), findsOneWidget);
+    expect(find.text('拼图排列'), findsNothing);
+    expect(find.text('裁剪 X%'), findsNothing);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
       find.text('尺寸与格式').hitTestable(),
       150,
       scrollable: find.byType(Scrollable).first,
@@ -158,10 +173,7 @@ void main() {
     );
     await tester.tap(find.text('图片拼图'));
     await tester.pumpAndSettle();
-    expect(
-      tester.widget<MediaPage>(find.byType(MediaPage)).imageAction,
-      ImageAction.collage,
-    );
+    expect(find.byType(CollagePage), findsOneWidget);
     expect(find.text('选择 2—9 张图片'), findsOneWidget);
     expect(find.text('裁剪 X%'), findsNothing);
     await tester.pumpWidget(const SizedBox());

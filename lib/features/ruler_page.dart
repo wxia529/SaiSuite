@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../core/app_state.dart';
+import '../core/platform_channel.dart';
 import 'catalog.dart';
 import 'workbench.dart';
 
@@ -34,7 +34,7 @@ class _RulerPageState extends State<RulerPage> {
       return;
     }
     try {
-      final metrics = await const MethodChannel('saisuite/device')
+      final metrics = await const SaiChannel('saisuite/device')
           .invokeMapMethod<String, dynamic>('displayMetrics');
       if (mounted && metrics != null) {
         setState(

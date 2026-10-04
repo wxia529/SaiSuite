@@ -65,6 +65,7 @@ android {
 }
 
 dependencies {
+    implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
     implementation("androidx.media3:media3-transformer:1.11.1")
     implementation("androidx.media3:media3-effect:1.11.1")

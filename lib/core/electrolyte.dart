@@ -103,6 +103,7 @@ ElectrolyteRecipe electrolyteRecipe(Map<String, String> p) {
     throw const FormatException('配方不能得到正的溶剂质量，请核对输入');
   }
   final ratioSum = ratios.fold(0.0, (a, b) => a + b);
+  if (!ratioSum.isFinite) throw const FormatException('溶剂质量比合计过大，请按相同比例缩小数值');
   final rows = <(String, double)>[];
   for (var i = 0; i < solvents.length; i++) {
     rows.add(('溶剂 ${solvents[i][0]}', solvent * ratios[i] / ratioSum));
@@ -130,7 +131,9 @@ String reverseRecipe(Map<String, String> p) {
   final saltRows = tableRows(p['实际盐：名称,摩尔质量,质量g,纯度%']!, 4);
   final addRows = tableRows(p['实际添加剂：名称,质量g'] ?? '', 2, optional: true);
   final solvent = solventRows.fold(0.0, (sum, r) => sum + rowNumber(r[1]));
-  if (solvent <= 0) throw const FormatException('实际溶剂总质量须大于零');
+  if (solvent <= 0 || !solvent.isFinite) {
+    throw const FormatException('实际溶剂总质量须为有限正数');
+  }
   final saltMass = saltRows.map((r) => rowNumber(r[2])).toList(),
       addMass = addRows.map((r) => rowNumber(r[1])).toList();
   final total =
@@ -138,6 +141,7 @@ String reverseRecipe(Map<String, String> p) {
       saltMass.fold(0.0, (a, b) => a + b) +
       addMass.fold(0.0, (a, b) => a + b);
   final volume = number(p, '实测最终体积 mL', nonnegative: true);
+  if (!total.isFinite) throw const FormatException('总质量过大，请核对输入与单位');
   final out = ['总质量：${fmt(total)} g', '溶剂质量：${fmt(solvent)} g'];
   for (var i = 0; i < saltRows.length; i++) {
     final r = saltRows[i],

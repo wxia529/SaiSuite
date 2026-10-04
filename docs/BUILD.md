@@ -1,6 +1,8 @@
 # 构建与签名
 
-记录日期：2026-10-04，版本 `1.4.0+9`，包名 `io.github.wxia529.saisuite`。
+当前构建版本以 `pubspec.yaml` 为准；1.4.1 开发包独立保存在 `dist/development/1.4.1/`。下文 1.4.0 的体积、安装和测试记录作为历史保留。
+
+记录日期：2026-10-04，当前版本 `1.4.1+10`，包名 `io.github.wxia529.saisuite`。
 
 ## 已验证工具链
 
@@ -97,6 +99,6 @@ E:\Android\Sdk\cmdline-tools\latest\bin\android.exe --no-metrics --sdk=E:\Androi
 E:\Android\Sdk\cmdline-tools\latest\bin\android.exe --no-metrics --sdk=E:\Android\Sdk sdk install platforms/android-36
 ```
 
-源码只包含 Android 工程。Windows 桌面版和系统开发者模式不是本次构建要求。构建过程的 JDK native-access 警告不影响当前验收，但更换 Java、Flutter 或 Gradle 版本后应重新验证。
+源码现同时包含 Android 与 Windows 工程。Windows 桌面版的构建、便携包和测试见 [Windows 说明](WINDOWS.md)；构建脚本可用目录联接处理插件，不要求开启系统开发者模式。构建过程的 JDK native-access 警告不影响当前验收，但更换 Java、Flutter 或 Gradle 版本后应重新验证。
 
 当前已在本机执行 `flutter clean` 后完成依赖解析和 release 构建；未在第二台完全干净机器上复现。可复现步骤与版本已记录，不将第二台机器验证视为已经执行。

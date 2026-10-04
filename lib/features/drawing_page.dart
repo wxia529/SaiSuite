@@ -1,7 +1,6 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/gestures.dart';
 
 import '../core/app_state.dart';
 import '../core/files.dart';
@@ -9,7 +8,18 @@ import 'catalog.dart';
 import 'workbench.dart';
 
 class DrawingStroke {
-  DrawingStroke(this.color, this.width, this.eraser, this.points);
+  DrawingStroke(
+    this.color,
+    this.width,
+    this.eraser,
+    this.points, {
+    this.shape = '画笔',
+    this.text,
+    this.textId,
+  });
+  final String? text;
+  final int? textId;
+  final String shape;
   final Color color;
   final double width;
   final bool eraser;
@@ -17,15 +27,37 @@ class DrawingStroke {
 }
 
 class DrawingPainter extends CustomPainter {
-  DrawingPainter(this.strokes);
+  DrawingPainter(this.strokes, {this.transparent = false});
   final List<DrawingStroke> strokes;
+  final bool transparent;
+  static TextPainter textPainter(DrawingStroke stroke) => TextPainter(
+    text: TextSpan(
+      text: stroke.text,
+      style: TextStyle(color: stroke.color, fontSize: stroke.width),
+    ),
+    textDirection: TextDirection.ltr,
+  )..layout(maxWidth: 850);
   @override
   void paint(Canvas canvas, Size size) {
+    if (!transparent) {
+      canvas.drawRect(Offset.zero & size, Paint()..color = Colors.white);
+    }
     canvas.saveLayer(Offset.zero & size, Paint());
-    canvas.drawRect(Offset.zero & size, Paint()..color = Colors.white);
+    final latestText = <int, DrawingStroke>{
+      for (final s in strokes)
+        if (s.textId != null) s.textId!: s,
+    };
     for (final stroke in strokes) {
+      if (stroke.textId != null) {
+        if (latestText[stroke.textId] != stroke) continue;
+        final text = textPainter(stroke);
+        text.paint(canvas, stroke.points.first);
+        text.dispose();
+        continue;
+      }
       final paint = Paint()
-        ..color = (stroke.eraser ? Colors.white : stroke.color)
+        ..color = stroke.color
+        ..blendMode = stroke.eraser ? BlendMode.clear : BlendMode.srcOver
         ..strokeWidth = stroke.width
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round
@@ -34,15 +66,53 @@ class DrawingPainter extends CustomPainter {
         canvas.drawCircle(
           stroke.points.first,
           stroke.width / 2,
-          Paint()..color = paint.color,
+          Paint()
+            ..color = paint.color
+            ..blendMode = paint.blendMode,
         );
+        continue;
+      }
+      if (stroke.shape != '画笔') {
+        final a = stroke.points.first, b = stroke.points.last;
+        final rect = Rect.fromPoints(a, b);
+        if (stroke.shape == '矩形') {
+          canvas.drawRect(rect, paint);
+        } else if (stroke.shape == '圆形') {
+          canvas.drawOval(rect, paint);
+        } else {
+          canvas.drawLine(a, b, paint);
+          if (stroke.shape == '箭头' && (b - a).distance > 0) {
+            final direction = (b - a) / (b - a).distance;
+            final side = Offset(-direction.dy, direction.dx);
+            canvas.drawPath(
+              Path()
+                ..moveTo(
+                  (b - direction * 20 + side * 10).dx,
+                  (b - direction * 20 + side * 10).dy,
+                )
+                ..lineTo(b.dx, b.dy)
+                ..lineTo(
+                  (b - direction * 20 - side * 10).dx,
+                  (b - direction * 20 - side * 10).dy,
+                ),
+              paint,
+            );
+          }
+        }
         continue;
       }
       final path = Path()
         ..moveTo(stroke.points.first.dx, stroke.points.first.dy);
-      for (final p in stroke.points.skip(1)) {
-        path.lineTo(p.dx, p.dy);
+      for (var i = 1; i < stroke.points.length - 1; i++) {
+        final p = stroke.points[i], next = stroke.points[i + 1];
+        path.quadraticBezierTo(
+          p.dx,
+          p.dy,
+          (p.dx + next.dx) / 2,
+          (p.dy + next.dy) / 2,
+        );
       }
+      path.lineTo(stroke.points.last.dx, stroke.points.last.dy);
       canvas.drawPath(path, paint);
     }
     canvas.restore();
@@ -67,6 +137,22 @@ class _DrawingPageState extends State<DrawingPage> {
   bool eraser = false, dirty = false, busy = false, drawingAccepted = false;
   int? drawingPointer;
   bool fullScreen = false;
+  bool transparent = false,
+      moveMode = false,
+      collapsed = false,
+      gestureBlocked = false;
+  String shape = '画笔';
+  int textSequence = 0;
+  final transform = TransformationController();
+  final pointers = <int>{};
+  List<DrawingStroke> previousRedo = [];
+  bool previousDirty = false;
+  @override
+  void dispose() {
+    transform.dispose();
+    super.dispose();
+  }
+
   Size? drawingSize;
   // Fixed export coordinates keep the drawing stable across rotation.
   Size get canvasSize => drawingSize ?? const Size(900, 900);
@@ -74,7 +160,10 @@ class _DrawingPageState extends State<DrawingPage> {
     setState(() => busy = true);
     try {
       final recorder = ui.PictureRecorder();
-      DrawingPainter(strokes).paint(Canvas(recorder), canvasSize);
+      DrawingPainter(
+        strokes,
+        transparent: transparent,
+      ).paint(Canvas(recorder), canvasSize);
       final picture = recorder.endRecording(),
           image = await picture.toImage(
             canvasSize.width.round(),
@@ -106,9 +195,46 @@ class _DrawingPageState extends State<DrawingPage> {
       message(context, '最多 1000 笔，请导出后清空');
       return;
     }
+    DrawingStroke? selectedText;
+    if (shape == '文字' && !eraser) {
+      final seen = <int>{};
+      for (final s in strokes.reversed) {
+        if (s.textId == null || !seen.add(s.textId!)) continue;
+        final text = DrawingPainter.textPainter(s);
+        final hit = (s.points.first & text.size)
+            .inflate(10)
+            .contains(p / scale);
+        text.dispose();
+        if (hit) {
+          selectedText = s;
+          break;
+        }
+      }
+      if (selectedText == null) return;
+    }
     setState(() {
       drawingAccepted = true;
-      strokes.add(DrawingStroke(color, width, eraser, [p / scale]));
+      previousRedo = List.of(redo);
+      previousDirty = dirty;
+      if (selectedText != null) {
+        strokes.add(
+          DrawingStroke(
+            selectedText.color,
+            selectedText.width,
+            false,
+            [selectedText.points.first, p / scale],
+            shape: '文字',
+            text: selectedText.text,
+            textId: selectedText.textId,
+          ),
+        );
+      } else {
+        strokes.add(
+          DrawingStroke(color, width, eraser, [
+            p / scale,
+          ], shape: eraser ? '画笔' : shape),
+        );
+      }
       redo.clear();
       dirty = true;
     });
@@ -127,7 +253,22 @@ class _DrawingPageState extends State<DrawingPage> {
         point.dy > canvasSize.height) {
       return;
     }
-    setState(() => strokes.last.points.add(point));
+    setState(() {
+      if (strokes.last.textId != null) {
+        final last = strokes.last;
+        final delta = point - last.points.last;
+        last.points[0] = Offset(
+          (last.points[0].dx + delta.dx).clamp(0, canvasSize.width - 20),
+          (last.points[0].dy + delta.dy).clamp(0, canvasSize.height - 20),
+        );
+        last.points[1] = point;
+        return;
+      }
+      if (strokes.last.shape != '画笔' && strokes.last.points.length > 1) {
+        strokes.last.points.removeLast();
+      }
+      strokes.last.points.add(point);
+    });
   }
 
   Future<void> clear() async {
@@ -163,46 +304,72 @@ class _DrawingPageState extends State<DrawingPage> {
       return AspectRatio(
         aspectRatio: canvasSize.aspectRatio,
         child: ClipRect(
-          child: RawGestureDetector(
-            // Claim canvas touches before the surrounding vertical list.
-            gestures: {
-              EagerGestureRecognizer:
-                  GestureRecognizerFactoryWithHandlers<EagerGestureRecognizer>(
-                    EagerGestureRecognizer.new,
-                    (_) {},
-                  ),
+          child: Listener(
+            onPointerDown: (d) {
+              pointers.add(d.pointer);
+              if (pointers.length > 1) {
+                if (drawingAccepted && strokes.isNotEmpty) {
+                  setState(() {
+                    strokes.removeLast();
+                    redo
+                      ..clear()
+                      ..addAll(previousRedo);
+                    dirty = previousDirty;
+                  });
+                }
+                drawingAccepted = false;
+                gestureBlocked = true;
+                drawingPointer = null;
+                return;
+              }
+              if (busy || moveMode || gestureBlocked) return;
+              drawingPointer = d.pointer;
+              begin(transform.toScene(d.localPosition), scale);
             },
-            child: Listener(
-              behavior: HitTestBehavior.opaque,
-              onPointerDown: (d) {
-                if (drawingPointer != null) return;
-                drawingPointer = d.pointer;
-                begin(d.localPosition, scale);
-              },
-              onPointerMove: (d) {
-                if (drawingPointer == d.pointer) {
-                  move(d.localPosition, scale);
-                }
-              },
-              onPointerUp: (d) {
-                if (drawingPointer == d.pointer) {
-                  drawingPointer = null;
-                  drawingAccepted = false;
-                }
-              },
-              onPointerCancel: (d) {
-                if (drawingPointer == d.pointer) {
-                  drawingPointer = null;
-                  drawingAccepted = false;
-                }
-              },
-              child: FittedBox(
-                fit: BoxFit.fill,
-                child: SizedBox(
-                  width: canvasSize.width,
-                  height: canvasSize.height,
-                  child: CustomPaint(painter: DrawingPainter(strokes)),
-                ),
+            onPointerMove: (d) {
+              if (drawingPointer == d.pointer && !gestureBlocked) {
+                move(transform.toScene(d.localPosition), scale);
+              }
+            },
+            onPointerUp: (d) {
+              pointers.remove(d.pointer);
+              if (pointers.isEmpty) {
+                gestureBlocked = false;
+                drawingPointer = null;
+                drawingAccepted = false;
+              }
+            },
+            onPointerCancel: (d) {
+              pointers.remove(d.pointer);
+              drawingAccepted = false;
+              drawingPointer = null;
+              if (pointers.isEmpty) gestureBlocked = false;
+            },
+            child: InteractiveViewer(
+              transformationController: transform,
+              panEnabled: moveMode || pointers.length > 1,
+              minScale: 1,
+              maxScale: 8,
+              child: Stack(
+                children: [
+                  if (transparent)
+                    const Positioned.fill(
+                      child: CustomPaint(painter: CheckerboardPainter()),
+                    ),
+                  FittedBox(
+                    fit: BoxFit.fill,
+                    child: SizedBox(
+                      width: canvasSize.width,
+                      height: canvasSize.height,
+                      child: CustomPaint(
+                        painter: DrawingPainter(
+                          strokes,
+                          transparent: transparent,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -242,11 +409,99 @@ class _DrawingPageState extends State<DrawingPage> {
         ),
     ],
   );
+  Future<void> addText() async {
+    if (strokes.length >= 1000) return;
+    final input = TextEditingController();
+    final value = await showDialog<String>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('添加文字'),
+        content: TextField(
+          controller: input,
+          maxLength: 200,
+          maxLines: 3,
+          decoration: const InputDecoration(hintText: '输入标注'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (input.text.trim().isNotEmpty) {
+                Navigator.pop(c, input.text.trim());
+              }
+            },
+            child: const Text('添加'),
+          ),
+        ],
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    input.dispose();
+    if (!mounted || value == null) return;
+    setState(() {
+      shape = '文字';
+      eraser = false;
+      strokes.add(
+        DrawingStroke(
+          color,
+          36,
+          false,
+          [Offset(canvasSize.width * .1, canvasSize.height * .3)],
+          shape: '文字',
+          text: value,
+          textId: textSequence++,
+        ),
+      );
+      redo.clear();
+      dirty = true;
+    });
+    message(context, '拖动文字可调整位置，撤销可恢复移动前的位置');
+  }
 
   Widget editingTools() => Wrap(
     alignment: WrapAlignment.center,
     children: [
       colorMenu(),
+      IconButton(
+        tooltip: '添加文字',
+        onPressed: busy ? null : addText,
+        icon: const Icon(Icons.text_fields),
+      ),
+      IconButton(
+        tooltip: '缩放移动',
+        onPressed: busy ? null : () => setState(() => moveMode = !moveMode),
+        icon: Icon(moveMode ? Icons.pan_tool : Icons.gesture),
+      ),
+      IconButton(
+        tooltip: '重置视图',
+        onPressed: () => transform.value = Matrix4.identity(),
+        icon: const Icon(Icons.center_focus_strong),
+      ),
+      PopupMenuButton<String>(
+        tooltip: '绘图形状',
+        icon: const Icon(Icons.category_outlined),
+        onSelected: (v) => setState(() {
+          shape = v;
+          eraser = false;
+        }),
+        itemBuilder: (_) => [
+          for (final s in ['画笔', '直线', '箭头', '矩形', '圆形', '文字'])
+            PopupMenuItem(value: s, child: Text(s)),
+        ],
+      ),
+      IconButton(
+        tooltip: '透明背景',
+        onPressed: busy
+            ? null
+            : () => setState(() {
+                transparent = !transparent;
+                dirty = true;
+              }),
+        icon: Icon(transparent ? Icons.grid_on : Icons.crop_square),
+      ),
       IconButton(
         tooltip: '橡皮',
         onPressed: busy ? null : () => setState(() => eraser = !eraser),
@@ -321,7 +576,13 @@ class _DrawingPageState extends State<DrawingPage> {
                   ),
                   Text('画板', style: Theme.of(context).textTheme.titleMedium),
                   const Spacer(),
-                  const Text('导出后保留作品', style: TextStyle(fontSize: 12)),
+                  IconButton(
+                    tooltip: collapsed ? '展开工具栏' : '收起工具栏',
+                    onPressed: () => setState(() => collapsed = !collapsed),
+                    icon: Icon(
+                      collapsed ? Icons.expand_more : Icons.expand_less,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -354,39 +615,64 @@ class _DrawingPageState extends State<DrawingPage> {
               },
             ),
           ),
-          Material(
-            color: Theme.of(context).colorScheme.surfaceContainerLow,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  editingTools(),
-                  Row(
-                    children: [
-                      Text(
-                        '${eraser ? '橡皮' : '画笔'} ${width.round()}',
-                        style: Theme.of(context).textTheme.labelMedium,
-                      ),
-                      Expanded(
-                        child: Slider(
-                          value: width,
-                          min: 1,
-                          max: 60,
-                          onChanged: busy
-                              ? null
-                              : (v) => setState(() => width = v),
+          if (!fullScreen || !collapsed)
+            Material(
+              color: Theme.of(context).colorScheme.surfaceContainerLow,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    editingTools(),
+                    Row(
+                      children: [
+                        Text(
+                          '${eraser ? '橡皮' : '画笔'} ${width.round()}',
+                          style: Theme.of(context).textTheme.labelMedium,
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                        Expanded(
+                          child: Slider(
+                            value: width,
+                            min: 1,
+                            max: 60,
+                            onChanged: busy
+                                ? null
+                                : (v) => setState(() => width = v),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
         ],
       ),
     ),
     children: const [],
   );
+}
+
+class CheckerboardPainter extends CustomPainter {
+  const CheckerboardPainter();
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (double y = 0; y < size.height; y += 16) {
+      for (double x = 0; x < size.width; x += 16) {
+        canvas.drawRect(
+          Rect.fromLTWH(x, y, 16, 16),
+          Paint()
+            ..color = ((x / 16 + y / 16).round().isEven
+                ? const Color(0xffeeeeee)
+                : const Color(0xffcccccc)),
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(CheckerboardPainter oldDelegate) => false;
 }

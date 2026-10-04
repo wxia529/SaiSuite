@@ -1,4 +1,4 @@
-name: Signed Android packages
+name: Android and Windows packages
 
 on:
   push:
@@ -83,9 +83,42 @@ jobs:
           compression-level: 0
           retention-days: 30
 
+  windows:
+    name: Build Windows x64 installer and portable package
+    needs: preflight
+    if: needs.preflight.outputs.should_build == 'true'
+    runs-on: windows-2022
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13.7'
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: '3.47.6'
+          channel: stable
+          cache: true
+      - name: Build Windows installer and complete portable package
+        shell: pwsh
+        run: ./tools/build_windows.ps1 -OutputDirectory dist/windows
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: SaiSuite-windows-${{ github.ref_name }}
+          path: |
+            dist/windows/*.zip
+            dist/windows/*.zip.sha256
+            dist/windows/*-setup.exe
+            dist/windows/*-setup.exe.sha256
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 30
+
   publish:
     name: Publish complete GitHub Release
-    needs: build
+    needs: [build, windows]
     if: github.event_name == 'push' && github.ref_type == 'tag'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -99,9 +132,14 @@ jobs:
         with:
           name: SaiSuite-${{ needs.build.outputs.tag }}
           path: dist
-      - name: Upload all nine assets to a draft, then publish
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: SaiSuite-windows-${{ github.ref_name }}
+          path: dist
+      - name: Upload Android and Windows assets to a draft, then publish
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ needs.build.outputs.tag }}
+          RELEASE_WINDOWS: 'true'
         run: python3 tools/release.py publish

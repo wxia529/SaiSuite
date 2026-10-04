@@ -324,3 +324,106 @@
 校验汇总 `dist/SHA256SUMS.txt`；v1.3.1 四包与 `dist/1.3.1-SHA256SUMS.txt` 保留。验证日志：`.buildlog/1.4.0-tests.log`、`1.4.0-analyze.log`、`1.4.0-update-integration.log`、`1.4.0-build-*.log`、`1.4.0-split-inspection.json`。实际开关和升级证据：`1.4.0-{before,after}-upgrade.xml`、`1.4.0-update-{settings,off,off-restart,manual-off}.xml`。
 
 ![GitHub 更新设置](images/v1.4-updates.png)
+
+## 图片编辑开发验收（2026-10-04，版本仍为 1.4.0+9，未发布）
+
+「图片工具 → 图片编辑」接入全屏编辑器，支持裁剪、调整、滤镜、文字、箭头、形状、模糊、马赛克和撤销重做。拼图、尺寸与格式、快速文字水印继续保留独立入口。详细限制与使用方式见 [图片编辑说明](IMAGE_EDITOR.md)。
+
+- `flutter analyze` 无问题，117 项单元/界面测试、2 项 API 36 图片编辑集成测试通过。设备实际 SDK 为 36，AVD 为 `SaiSuite_API_36`。
+- 真实 Android 系统保存界面首次取消、第二次保存，验证取消不标记成功且退出仍提示，保存成功后退出无未保存提示。原始输入 SHA-256 保持不变。
+- 保存后的透明 PNG 独立解析为 320 × 160，保留透明角落和中文标注；正式模式测试包通过系统选图、1:1 裁剪和 JPEG 导出，独立解析结果为 RGB、160 × 160。
+- Universal 和三种 ABI 测试包均保持原版本及构建号规则，验证原签名证书、minSdk 24、targetSdk 36 和对应 ABI。沿用原生库，主要体积增量来自 Dart 编辑器代码。
+
+四包及最终校验报告单独存放在 `dist/development/image-editor/`，未覆盖正式 APK、未推送标签或发布 Release。单元、集成、构建日志及导出文件保存在 `.buildlog/image-editor-*`。旧设备上的大图内存和实体硬件表现尚未专项验证。
+
+
+## 工作台升级开发验收（2026-10-04，版本仍为 1.4.0+9，未发布）
+
+电解液输入改为组分卡片与实时结果；拼图增加模板、换位、逐格裁剪和长图；配色增加锁色、排序、单色编辑、色卡导出及照片主色联动；画板支持双指操作、真正擦除、透明背景、形状与可移动文字；视频接入内嵌播放器、缩略图时间轴和片段循环；PDF 保留轻量工具，增加全屏预览和网格多选。完整限制见 [工作台升级说明](TOOL_UPGRADES.md)。
+
+- `flutter analyze` 无问题，126 项单元/界面测试通过，覆盖双指缩放不误画、文字移动撤销、锁色随机、透明擦除、无效配方清除旧结果与质量溢出拒绝。
+- 2 项 API 36 工作台集成测试通过。验证拼图实际像素、PDF 全屏翻页、多选及重复页转换，视频缩略图尺寸、实际截帧、内嵌播放、选段与整段末尾循环、1 秒片段输出为 360p，以及源文件 SHA-256 不变。
+- 开发安装包保持 1.4.0+9；universal 和三种 ABI 独立存放在 `dist/development/tool-upgrades/`，最终包签名、平台、架构、体积和哈希以 `inspection.json` 为准。没有推送、发标签或覆盖正式发行包。
+- 大图与长视频在旧设备上的实际性能、真实硬件音画同步尚未专项验证。测试视频只用于调试缓存，不打入安装包。
+
+
+## 图片原尺寸转 PDF 开发验收（2026-10-04，版本仍为 1.4.0+9）
+
+新增“页面尺寸 → 按图片尺寸”。每张图片生成独立页面，1 px = 1 pt（72 dpi），不裁剪、不加边距、不降低像素；EXIF 方向校正，PNG 透明通道保留，完整解码后无损封装。原有 A4、Letter 模式通过回归检查。安全边界及说明见 [工作台升级说明](TOOL_UPGRADES.md)。
+
+127 项单元/界面测试通过，新增 API 36 原生集成测试通过：5000×200、240×480、8 种 EXIF 方向混合生成 10 页 PDF，页尺寸与图像尺寸一致。pypdf 独立解码与对应源图逐像素 RGBA 差异为 0，Poppler 渲染正常，所有源图 SHA-256 不变；1600 万像素以上明确拒绝，未自动缩小。开发包四种架构及校验文件独立保存在 `dist/development/pdf-original-size/`。
+
+
+## Windows 桌面版（保持 1.4.0+9）
+
+- 57 项现有工具：PDF、图片、视频、计算、日期、科研与电化学；手机传感器三项在 Windows 隐藏，不恢复已删除的 CSV 工具。
+- Windows 10 22H2 x64、Visual Studio Enterprise 2026 18.10.3、Flutter 3.47.6；Release 与 Debug 均编译成功。Windows 11 未另行验收。
+- 静态分析无问题；128 项单元/界面测试、3 项 Windows 桌面集成、5 组随包后端验证通过；后端包含 AES-256、中文水印、RGBA 原尺寸、EXIF、真实 H.264/AAC、音频保留/静音。
+- 桌面集成验证专属缓存清理不会删除共享 TEMP 中两天前的输入，原文件哈希不变；查看实际桌面首页截图 `.buildlog/windows-home.png`。
+- 默认设备 emulator-5558 实际 API 36；两项 PDF/拼图/视频回归通过，主程序重新启动到调试首页。第一次回归缺测试素材的失败已补齐素材并重新通过。
+- ZIP 解压到含中文、空格的新目录后，全部文件哈希、ZIP CRC、x64 PE 和 CRT 完整性通过，使用解压包自带解释器执行五组真实后端测试；脱离原构建目录的 Release EXE 隐藏启动，进程保持响应，资源版本 1.4.0+9。
+- 产物 `dist/development/windows/SaiSuite-1.4.0-windows-x64.zip`，111,527,208 字节（106.36 MiB），923 个校验文件；SHA-256 `ba5f052e9138c0b90eb746de99c0fc33a6d2eb86077c502b809ac4646fd95df9`。
+- 16 项发布脚本测试通过，包含 Windows 包缺失或校验错误时禁止发布；GitHub 工作流 YAML 已校验。远端 Windows Actions 尚未执行，本轮未推送、发布或创建标签。
+- Windows 程序没有 Authenticode 签名；原 Android 密钥和正式 APK 保留。便携包说明及完整平台限制见 [Windows 说明](WINDOWS.md)。
+
+## Windows 安装包（2026-10-04，保持 1.4.0+9）
+
+- 中文 Inno Setup 向导：按当前用户安装，目录与开始菜单位置可选，桌面快捷方式可选；提供 Windows 应用列表和开始菜单卸载入口。默认路径为 `%LOCALAPPDATA%\Programs\SaiSuite`。
+- `SaiSuite-1.4.0-windows-x64-setup.exe`：83,277,006 字节（79.42 MiB），SHA-256 `69e156674fd21363e0d2e9a3026bc349bee6da0d839b257233404c0ca938063c`。
+- 保留并更新便携 ZIP：111,527,772 字节（106.36 MiB），SHA-256 `0bad8e65acdbfb328351e0cc4c8c3c53bc9e6a17c6f1533dce95c1251e123913`；本节校验值取代上节初次便携包记录。两种产物均位于 `dist/development/windows/`，各自附校验文件。
+- 真实安装到中文和空格路径，校验 923 个文件；注册表版本、快捷方式、重复安装、已安装程序启动与五组随包后端验证通过。
+- 程序运行时安装和卸载均被拦截，未关闭测试进程；停止该测试进程后卸载成功。卸载入口和测试快捷方式移除，用户加入安装目录的文件、目录外导出结果和实际偏好文件均保留。报告 `.buildlog/windows-installer-verification.json`，日志 `.buildlog/windows-installer-test-e501d5c1/`。
+- 最终 ZIP 的 CRC、全部文件哈希、x64 PE、CRT，以及脱离构建目录的五组随包后端验证再次通过，报告 `.buildlog/windows-portable-verification.json`。
+- 静态分析无问题、128 项单元/界面测试及 17 项发布脚本测试通过。更新优先匹配安装 EXE，旧发布回退 ZIP；测试覆盖缺失、篡改安装包阻止发布和完整十三项附件发布。
+- Actions 已包含 Windows 安装 EXE、ZIP 和校验文件，仍由 tag 正式构建并发布；工作流 YAML 校验通过，远端尚未执行。没有改版本号、推送、创建标签或公开发布；Windows 安装包仍无 Authenticode 证书签名。
+
+
+## 22 项创作、文字与日常扩展（2026-10-04，保持 1.4.0+9）
+
+用户选定的工具全部加入：时间屏幕、手持弹幕、分段秒表、记分牌、反应力、进制、中文数字、上下标、摩斯、迷你英文、拆分选词、拼音、渐变、九格、GIF、表情、文字转图、幻影坦克、照片信息、OCR、拍照计数、视频音轨。Android 共 82 项，Windows 共 79 项。各工具采用独立工作台、分组参数与效果预览；未新增实验记录或自动保存。完整行为和边界见 [扩展功能说明](CREATIVE_TOOLS.md)。
+
+- 静态分析无问题，138 项单元／界面测试通过。新增 10 项测试覆盖计算与编解码、Unicode、实际图片像素、GIF 帧时长和 Flutter 播放次数、阈值计数及 22 个工作台窄屏初始化。
+- Android `emulator-5558` 实际 SDK=36；三项设备集成通过，覆盖中英文 OCR、JPEG EXIF 修改／清除、原件与图像像素保持、实际 AAC 音轨以及文字卡片／秒表绘制。
+- Windows 三项创作集成通过，并验证无边框全屏进入与恢复。查看真实文字卡片截图，修正过高预览。便携包搬到中文／空格路径后，随包 OCR 脚本实际识别文本成功，源图哈希不变。
+- 新 Windows 安装包验证 924 个文件：真实安装／重复安装／卸载、快捷方式、运行中安装卸载保护、偏好和用户文件保留全部通过。安装包和便携包的五组 PDF／图片／视频后端验证通过；便携包 CRC、文件哈希、x64 PE、CRT 完整性通过。
+- 四个 APK 检查版本、minSdk 24、targetSdk 36、对应 ABI、原证书，以及随包中文 OCR 模型和每种 ABI 的原生识别库。Universal 与三个分包均为本轮新构建，文件附 SHA-256。
+- 集成测试与正式构建顺序执行。首次发布构建遇到生成的集成测试插件注册冲突，已重建并成功；未把失败构建产物作为最终包。主程序随后恢复到 API 36 调试模拟器。
+
+拍照计数按反差明显、分散的圆片／颗粒实现，粘连遮挡需手动增删；没有宣称任意物体 AI 计数。Windows OCR 依赖系统中文语言资源；Android 随包包含中文模型。EXIF 仅编辑 JPEG 和 ASCII 文本，保留方向，其他 XMP 元数据不承诺清除。Android 音轨直接提取支持 AAC，其他编码可先用已有视频转换。真实厂商相机回调与旧设备大图性能尚未专项验收。
+
+本轮产物独立存于 `dist/development/creative-tools/`，以前的包全部保留。未改版本、推送、创建标签或发布 Release；Android 沿用证书 `86d06951211ad5412b4dd90079a379b46bbc223933b9891599835ff2dd99b250`，Windows 仍无 Authenticode 签名。
+
+| 产物 | 字节 | MiB | SHA-256 |
+|---|---:|---:|---|
+| SaiSuite-1.4.0-universal.apk | 120,794,138 | 115.20 | `c62a1ff3478809d1ccc1aaae3009b84c299670bccfb100e3c95596ee4d9c26b2` |
+| SaiSuite-1.4.0-armeabi-v7a.apk | 48,086,649 | 45.86 | `29520e1667503dd7665d2b9c618f8d435ef1c844372341075770f188d0330ff7` |
+| SaiSuite-1.4.0-arm64-v8a.apk | 53,811,031 | 51.32 | `5fda0e977459401313de075cd62d71e7d8bc3bdeab7fa9328747f3a80b16c79e` |
+| SaiSuite-1.4.0-x86_64.apk | 55,978,232 | 53.39 | `26b8eeba835ee204b7fb2a22c0c5ef0fd6453058b9446d7cc84d4cdc6ffe4245` |
+| SaiSuite-1.4.0-windows-x64-setup.exe | 83,943,593 | 80.05 | `4ac8dd88d66eed72509cb7fc2c980269f05c96d465c7ef98a57b024f8181c896` |
+| SaiSuite-1.4.0-windows-x64.zip | 112,441,718 | 107.23 | `fcee2f7b26999671fb0163bdc38634acecaa3f7f48c8986d12cbafe5f93fb9b2` |
+
+日志为 `.buildlog/creative-{analyze,unit-tests,android-integration,windows-integration,android-release,android-split,windows-release,installer-verification,portable-verification}.log`；APK 检查为 `dist/development/creative-tools/android/inspection.json`。Windows 验证 JSON 记录当前包路径、哈希及安装测试目录，搬迁后 OCR 结果在 `.buildlog/creative-packaged-ocr.json`。
+
+
+## 用户授权升级至 1.4.1+10（2026-10-04）
+
+用户明确要求升级版本号，将 `pubspec.yaml` 和应用显示版本同步为 1.4.1+10。工具仍为 Android 82 项、Windows 79 项。计算导出 JSON 使用统一 `appVersion`；新增 `docs/releases/v1.4.1.md`，发布与安装校验脚本从当前版本读取参数，不再写死旧版。
+
+- 静态分析无问题，21 项应用／更新测试、17 项发布脚本测试通过。功能完整验收沿用上节，版本改动未重复全部功能集成。
+- 四个新 APK 通过版本、架构、SDK、原证书和随包 OCR 模型检查，versionCode 为 universal 10、ARM32 1010、ARM64 2010、x86_64 4010；签名不变。
+- 默认模拟器 `emulator-5558` 实際 SDK=36，正式 x86_64 包从 1.4.0／4009 通过 `adb install -r` 覆盖到 1.4.1／4010，并启动主程序。没有先卸载旧版。
+- Windows Release EXE 的 FileVersion／ProductVersion 为 1.4.1+10，数字资源为 1.4.1.10；安装注册表 DisplayVersion 为 1.4.1+10。
+- Windows 安装、重复安装、卸载、924 个文件哈希、运行中保护、用户文件与偏好保留通过；安装版与 ZIP 便携版分别通过五组随包后端验证。ZIP CRC、x64 PE、CRT、中文／空格搬迁目录检查通过。
+- 测试后使用带默认 pub 步骤的 release 构建重新生成插件注册表；Windows 构建脚本已移除 `--no-pub`，避免携带测试注册信息。首次 Android 构建遇到残留引用后已重新生成并成功。
+- 新包独立放在 `dist/development/1.4.1/`；上一轮 Android universal、Windows EXE 与 ZIP 的哈希复核不变。未推送、创建标签或发布；可在确认发布时使用 `v1.4.1+10`。
+
+| 产物 | 字节 | MiB | SHA-256 |
+|---|---:|---:|---|
+| SaiSuite-1.4.1-universal.apk | 120,794,134 | 115.20 | `3fcc9b991a85865afffb96e21e11cb4c772bab6da4c37b111d008cc156c99e9f` |
+| SaiSuite-1.4.1-armeabi-v7a.apk | 48,086,645 | 45.86 | `1cd9f9cc07be83ade88d729140c3a8ffe285226a2e6713a88e2af61a8196c6bc` |
+| SaiSuite-1.4.1-arm64-v8a.apk | 53,811,031 | 51.32 | `7bee6daec3b305ff590097ff11daf85b100ce349a86cdf40649d6abaca5caf61` |
+| SaiSuite-1.4.1-x86_64.apk | 55,978,232 | 53.39 | `950b4d143f7b11bcd8fe93d997827c5333ad9d905e0ed4adfb4d8ad4eb37cc01` |
+| SaiSuite-1.4.1-windows-x64-setup.exe | 83,938,957 | 80.05 | `29dbcabdef1791bf9dce2faac7b31488d318bbcd73654561032585ba5c575d4a` |
+| SaiSuite-1.4.1-windows-x64.zip | 112,441,743 | 107.23 | `0c869c18d16b170bc0754fe8057bef7bc259b5be13d043ecf1ceed13ddab8992` |
+
+本轮日志与报告为 `.buildlog/1.4.1-*`；Android 同目录提供 `inspection.json`、四份 `.sha256` 及 `SHA256SUMS.txt`；Windows EXE／ZIP 各有 `.sha256`。

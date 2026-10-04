@@ -252,6 +252,13 @@ def publish():
     if repo != "wxia529/SaiSuite":
         raise ValueError("Unexpected release repository")
     assets = verify_checksums(ROOT / "dist", name)
+    if os.environ.get("RELEASE_WINDOWS") == "true":
+        for suffix in ('.zip', '-setup.exe'):
+            windows = ROOT / "dist" / f"SaiSuite-{name}-windows-x64{suffix}"
+            checksum = windows.with_suffix(windows.suffix + ".sha256")
+            if checksum.read_text(encoding="ascii") != f"{digest(windows)}  {windows.name}\n":
+                raise ValueError("Windows package checksum mismatch")
+            assets.extend([windows, checksum])
     existing = find_release(repo, tag)
     if existing and not existing["draft"]:
         raise ValueError("Release is already public; refusing to replace published packages")
@@ -273,7 +280,7 @@ def publish():
     if not draft or not draft["draft"] or uploaded != expected or any(asset["state"] != "uploaded" for asset in draft["assets"]):
         raise ValueError("Draft release assets are incomplete or unexpected; leaving draft unpublished")
     subprocess.run(["gh", "release", "edit", tag, "--draft=false", "--prerelease=false", "--latest"], check=True)
-    print(f"Published {tag} with all nine verified assets")
+    print(f"Published {tag} with all {len(assets)} verified assets")
 
 
 def main():

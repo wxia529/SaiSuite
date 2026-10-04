@@ -75,7 +75,7 @@ void main() {
         SaiApp(state: AppState(await SharedPreferences.getInstance())),
       );
       await tester.pumpAndSettle();
-      expect(find.text('浏览 60 个工具'), findsOneWidget);
+      expect(find.text('浏览 ${tools.length} 个工具'), findsOneWidget);
       await tester.tap(find.text('工具'));
       await tester.pumpAndSettle();
       for (final name in ['循环数据分析', '锂金属测试分析', '电流积分与容量', '梯度配方']) {

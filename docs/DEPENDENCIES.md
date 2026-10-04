@@ -36,7 +36,7 @@
 - 项目在 E:，Pub 缓存在 C:。Kotlin 增量缓存无法处理跨磁盘相对路径，因此项目关闭 Kotlin 增量编译，并采用 in-process 编译策略。
 - 使用 Android SDK 平台 36、NDK 28.2.13676358；首次构建还会下载依赖自身需要的平台版本。
 - 新版 Android CLI 的旧 `sdkmanager` 包装器不能可靠处理 Gradle 自动安装 NDK 的调用。本机已用官方 `android sdk install` 命令安装对应包。
-- 工程目前只生成 Android 平台。Windows 桌面版不属于当前交付；避免为了可选平台要求用户修改系统开发者模式。
+- 工程同时生成 Android 与 Windows。Windows 专属 PDF/图片/视频组件由 CMake 安装到桌面包中，不加入 Android assets；构建脚本不要求修改系统开发者模式。详见 [Windows 说明](WINDOWS.md)。
 - release 使用单独本地签名，不使用默认 debug 密钥。私钥和密码文件不进入 Git。
 
 ## v1.1 原生媒体与设备
@@ -47,5 +47,7 @@ Android 集成测试下载 AndroidX Media3 的 sample.mp4 测试素材，下载�
 
 
 ## GitHub 更新检查（v1.4.0）
+
+2026-10-04 创作扩展增加 image 4.10.1（MIT）与 lpinyin 2.0.3（BSD-2-Clause）；Android 增加随包 ML Kit 中文 OCR 16.0.1；Windows 使用系统 Windows.Media.Ocr 中文语言资源。系统相机输出通过 FileProvider 接收，不新增 CAMERA 权限。功能、模型依赖和限制见 [创作扩展](CREATIVE_TOOLS.md)。
 
 使用 Dart 标准库 HttpClient 请求公开仓库 wxia529/SaiSuite 的 GitHub Releases API，不新增第三方包，不嵌入访问令牌。正式应用新增 INTERNET 权限，仅提交更新请求所需的 HTTP 信息，不发送工具输入或实验数据。下载由浏览器处理，不申请安装包权限或后台下载 APK。详见 [更新与发布说明](UPDATES.md)。
