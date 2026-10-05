@@ -261,37 +261,6 @@ Map<String, dynamic> creativeImageJob(Map<String, dynamic> a) {
       'frames': source.numFrames,
     };
   }
-  if (action == 'phantom') {
-    final other = readCreativeImage(a['other'] as Uint8List);
-    final scale = math.min(1.0, 1600 / math.max(source.width, source.height));
-    final width = (source.width * scale).round().clamp(1, 1600),
-        height = (source.height * scale).round().clamp(1, 1600);
-    final light = a['frame'] == null
-        ? img.copyResize(source, width: width, height: height)
-        : frameCreativeImage(source, width, height, a['frame'] as Map);
-    final dark = a['otherFrame'] != null
-        ? frameCreativeImage(other, width, height, a['otherFrame'] as Map)
-        : img.copyResize(
-            other,
-            width: width,
-            height: height,
-            maintainAspect: true,
-            backgroundColor: img.ColorRgb8(0, 0, 0),
-          );
-    final result = img.Image(width: width, height: height, numChannels: 4);
-    for (final p in result) {
-      final w = 127.5 + img.getLuminance(light.getPixel(p.x, p.y)) / 2;
-      final b = img.getLuminance(dark.getPixel(p.x, p.y)) / 2;
-      final alpha = (255 - w + b).round().clamp(0, 255);
-      final color = alpha == 0 ? 0 : (b * 255 / alpha).round().clamp(0, 255);
-      p
-        ..r = color
-        ..g = color
-        ..b = color
-        ..a = alpha;
-    }
-    return {'bytes': png(result), 'width': width, 'height': height};
-  }
   if (action == 'count') {
     final scale = math.min(1.0, 720 / math.max(source.width, source.height));
     final image = img.copyResize(

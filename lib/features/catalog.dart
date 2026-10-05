@@ -105,13 +105,6 @@ final tools = <ToolSpec>[
     aliases: '表情制作 文字转图 文字转图片 emoji',
   ),
   const ToolSpec(
-    'B06',
-    '幻影坦克隐藏图',
-    '创作',
-    '透明灰度图片，明暗背景效果预览',
-    Icons.layers_outlined,
-  ),
-  const ToolSpec(
     'B07',
     '照片信息编辑器',
     '创作',

@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
-import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
@@ -36,15 +35,15 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
   };
   final images = <String>[], durations = <int>[], owned = <String>[];
   final frames = <ImageFrame?>[];
-  ui.Image? framingImage, otherImage;
-  Size? framingSize, otherSize;
-  ImageFrame framing = const ImageFrame(), otherFraming = const ImageFrame();
+  ui.Image? framingImage;
+  Size? framingSize;
+  ImageFrame framing = const ImageFrame();
   List<int> colors = [0xff147d73, 0xff7595d8, 0xffe5adbc];
-  String? source, other;
+  String? source;
   String mode = '合成 GIF', error = '', note = '', outputName = '';
   Map<String, dynamic> metadata = {};
   Uint8List? output, preview;
-  bool busy = false, saved = false, loop = true, white = true;
+  bool busy = false, saved = false, loop = true;
   double angle = 45, noise = 0, edge = 480, frameTime = 200;
   Timer? debounce;
   int revision = 0, timingVersion = 0;
@@ -60,7 +59,6 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
   void dispose() {
     debounce?.cancel();
     framingImage?.dispose();
-    otherImage?.dispose();
     width.dispose();
     height.dispose();
     hex.dispose();
@@ -109,80 +107,70 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
     }
   }
 
-  Future<void> pick({bool second = false, bool multi = false}) =>
-      guarded(() async {
-        if (multi) {
-          final picked = await FilePicker.pickFiles(type: FileType.image);
-          if (picked.isEmpty || !mounted) return;
-          if (images.length + picked.length > 60) {
-            throw const FormatException('最多 60 帧');
-          }
-          for (final file in picked) {
-            images.add(await Files.localCopy(file, maxBytes: 30 * 1024 * 1024));
-            durations.add(frameTime.round());
-            frames.add(null);
-          }
-          setState(() {
-            output = null;
-            preview = null;
-          });
-          return;
-        }
-        final picked = await FilePicker.pickFile(
-          type: id == 'B10' ? FileType.video : FileType.image,
-        );
-        if (picked == null || !mounted) return;
-        final path = await Files.localCopy(
-          picked,
-          maxBytes: id == 'B10' ? 100 * 1024 * 1024 : 30 * 1024 * 1024,
-        );
-        final loaded = id == 'B02' || id == 'B06'
-            ? await loadFraming(path)
-            : null;
-        if (loaded != null && id == 'B02' && loaded.size.shortestSide < 3) {
-          loaded.image.dispose();
-          throw const FormatException('图片至少需要 3 × 3 像素');
-        }
-        if (!mounted) {
-          loaded?.image.dispose();
-          return;
-        }
+  Future<void> pick({bool multi = false}) => guarded(() async {
+    if (multi) {
+      final picked = await FilePicker.pickFiles(type: FileType.image);
+      if (picked.isEmpty || !mounted) return;
+      if (images.length + picked.length > 60) {
+        throw const FormatException('最多 60 帧');
+      }
+      for (final file in picked) {
+        images.add(await Files.localCopy(file, maxBytes: 30 * 1024 * 1024));
+        durations.add(frameTime.round());
+        frames.add(null);
+      }
+      setState(() {
+        output = null;
+        preview = null;
+      });
+      return;
+    }
+    final picked = await FilePicker.pickFile(
+      type: id == 'B10' ? FileType.video : FileType.image,
+    );
+    if (picked == null || !mounted) return;
+    final path = await Files.localCopy(
+      picked,
+      maxBytes: id == 'B10' ? 100 * 1024 * 1024 : 30 * 1024 * 1024,
+    );
+    final loaded = id == 'B02' ? await loadFraming(path) : null;
+    if (loaded != null && id == 'B02' && loaded.size.shortestSide < 3) {
+      loaded.image.dispose();
+      throw const FormatException('图片至少需要 3 × 3 像素');
+    }
+    if (!mounted) {
+      loaded?.image.dispose();
+      return;
+    }
+    setState(() {
+      source = path;
+      output = null;
+      preview = null;
+      metadata = {};
+      saved = false;
+      if (loaded != null) {
+        framingImage?.dispose();
+        framingImage = loaded.image;
+        framingSize = loaded.size;
+        framing = const ImageFrame();
+      }
+    });
+    if (id == 'B07') {
+      final result = await creativeChannel.invokeMapMethod<String, dynamic>(
+        'exifRead',
+        {'path': path},
+      );
+      if (mounted) {
         setState(() {
-          second ? other = path : source = path;
-          output = null;
-          preview = null;
-          metadata = {};
-          saved = false;
-          if (loaded != null) {
-            if (second) {
-              otherImage?.dispose();
-              otherImage = loaded.image;
-              otherSize = loaded.size;
-              otherFraming = const ImageFrame();
-            } else {
-              framingImage?.dispose();
-              framingImage = loaded.image;
-              framingSize = loaded.size;
-              framing = const ImageFrame();
-            }
+          metadata = result ?? {};
+          for (final e in fields.entries) {
+            e.value.text = '${metadata[e.key] ?? ''}';
           }
         });
-        if (id == 'B07') {
-          final result = await creativeChannel.invokeMapMethod<String, dynamic>(
-            'exifRead',
-            {'path': path},
-          );
-          if (mounted) {
-            setState(() {
-              metadata = result ?? {};
-              for (final e in fields.entries) {
-                e.value.text = '${metadata[e.key] ?? ''}';
-              }
-            });
-          }
-        }
-        if (id == 'B02') await doGenerate();
-      });
+      }
+    }
+    if (id == 'B02') await doGenerate();
+  });
   Future<void> generate() => guarded(doGenerate);
   Future<({ui.Image image, Size size})> loadFraming(String path) async {
     final result = await compute(creativeImageJob, {
@@ -210,14 +198,13 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
     Size sourceSize,
     ImageFrame frame,
     ValueChanged<ImageFrame> changed, {
-    double ratio = 1,
     bool grid = false,
   }) => StudioPanel(
     title: title,
     children: [
       Center(
         child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: 420 * math.min(1.0, ratio)),
+          constraints: const BoxConstraints(maxWidth: 420),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(16),
             child: ImageFramingPreview(
@@ -225,7 +212,6 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
               image: image,
               sourceSize: sourceSize,
               value: frame,
-              ratio: ratio,
               grid: grid,
               onChanged: busy ? null : changed,
             ),
@@ -393,16 +379,6 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
           a['action'] = 'gifSplit';
           outputName = 'GIF拆帧.zip';
         }
-        if (id == 'B06') {
-          if (other == null) throw const FormatException('请再选择暗背景显示的图片');
-          a.addAll({
-            'action': 'phantom',
-            'other': await File(other!).readAsBytes(),
-            'frame': framing.toMap(),
-            'otherFrame': otherFraming.toMap(),
-          });
-          outputName = '幻影坦克.png';
-        }
       }
       result = await compute(creativeImageJob, a);
     }
@@ -512,16 +488,7 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
           }),
         ),
       if (id != 'B01' && !(id == 'B03' && mode == '合成 GIF'))
-        sourceCard(
-          id == 'B06'
-              ? '亮背景显示的图片'
-              : id == 'B10'
-              ? '选择含音轨的视频'
-              : '选择图片',
-          source,
-          () => pick(),
-        ),
-      if (id == 'B06') sourceCard('暗背景显示的图片', other, () => pick(second: true)),
+        sourceCard(id == 'B10' ? '选择含音轨的视频' : '选择图片', source, () => pick()),
       if (id == 'B01')
         StudioPanel(
           title: '颜色与画布',
@@ -645,24 +612,6 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
           framing,
           (f) => invalidate(() => framing = f),
           grid: true,
-        ),
-      if (id == 'B06' && framingImage != null)
-        framingPanel(
-          '亮图取景',
-          framingImage!,
-          framingSize!,
-          framing,
-          (f) => invalidate(() => framing = f),
-          ratio: framingSize!.aspectRatio,
-        ),
-      if (id == 'B06' && otherImage != null && framingSize != null)
-        framingPanel(
-          '暗图取景 · 与亮图比例一致',
-          otherImage!,
-          otherSize!,
-          otherFraming,
-          (f) => invalidate(() => otherFraming = f),
-          ratio: framingSize!.aspectRatio,
         ),
       if (id == 'B03' && mode == '合成 GIF')
         StudioPanel(
@@ -829,11 +778,6 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
             '导出 M4A。Android 直接提取 AAC 音轨；其他音轨可先用视频工具转换为 MP4。Windows 会转换音轨为 AAC。无音轨的视频会明确提示。',
           ),
         ),
-      if (id == 'B06')
-        const Padding(
-          padding: EdgeInsets.all(16),
-          child: Text('输出透明灰度 PNG，亮背景与暗背景呈现不同内容。部分聊天软件会改变透明度，保存后请用两种背景查看。'),
-        ),
       FilledButton.icon(
         onPressed: busy ? null : generate,
         icon: const Icon(Icons.auto_awesome_outlined),
@@ -862,19 +806,11 @@ class _ImageStudioPageState extends State<ImageStudioPage> {
         StudioPanel(
           title: '实际输出预览',
           children: [
-            if (id == 'B06')
-              studioChoices(
-                ['白背景', '黑背景'],
-                white ? '白背景' : '黑背景',
-                (v) => setState(() => white = v == '白背景'),
-              ),
             const SizedBox(height: 12),
             ClipRRect(
               borderRadius: BorderRadius.circular(16),
               child: Container(
-                color: id == 'B06'
-                    ? (white ? Colors.white : Colors.black)
-                    : const Color(0xffe8e8e8),
+                color: const Color(0xffe8e8e8),
                 child: Stack(
                   children: [
                     Image.memory(

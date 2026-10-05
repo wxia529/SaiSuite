@@ -42,8 +42,8 @@ python tools/release.py version
 
 ```powershell
 git push origin main
-git tag -a 'v1.4.2+11' -m 'Publish verified application packages'
-git push origin 'v1.4.2+11'
+git tag -a 'v1.4.3+12' -m 'Publish verified application packages'
+git push origin 'v1.4.3+12'
 ```
 
 tag 必须指向实际构建提交，必须与源码版本／构建号一致，且对应的发布说明存在。工作流使用该说明作为 GitHub Release 正文；正式公开后再更新发布索引状态，记录 tag、实际发布日期及 Release 链接。

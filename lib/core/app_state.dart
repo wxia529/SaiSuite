@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// Removed in v1.3.1; only tool shortcuts are migrated, never exported files.
-const retiredToolIds = {'N02', 'N06', 'N07', 'EC21'};
+// Only retired tool shortcuts are migrated, never exported files.
+const retiredToolIds = {'N02', 'N06', 'N07', 'EC21', 'B06'};
 
 List<String> migrateShortcutIds(List<String> ids) => {
   for (final id in ids)

@@ -37,8 +37,8 @@ void main() {
     'upgrade removes retired shortcuts and keeps remaining settings and order',
     () async {
       SharedPreferences.setMockInitialValues({
-        'favorites': ['N06', 'C01', 'EC21', 'P01', 'N02', 'N07'],
-        'recent': ['N02', 'N01', 'N06', 'C01', 'EC21', 'N07'],
+        'favorites': ['N06', 'C01', 'B06', 'EC21', 'P01', 'N02', 'N07'],
+        'recent': ['B06', 'N02', 'N01', 'N06', 'C01', 'EC21', 'N07'],
         'theme': ThemeMode.dark.index,
         'calculatorHistory': ['{"expression":"1+1","result":"2"}'],
         'pom_remaining': 57,
@@ -68,8 +68,8 @@ void main() {
     'retired tools disappear from search and tool browsing remains available',
     (tester) async {
       SharedPreferences.setMockInitialValues({
-        'favorites': ['N02', 'N06', 'N07', 'EC21'],
-        'recent': ['N02', 'N06', 'N07', 'EC21'],
+        'favorites': ['N02', 'N06', 'N07', 'EC21', 'B06'],
+        'recent': ['B06', 'N02', 'N06', 'N07', 'EC21'],
       });
       await tester.pumpWidget(
         SaiApp(state: AppState(await SharedPreferences.getInstance())),
@@ -78,7 +78,7 @@ void main() {
       expect(find.text('浏览工具'), findsOneWidget);
       await tester.tap(find.text('工具'));
       await tester.pumpAndSettle();
-      for (final name in ['循环数据分析', '锂金属测试分析', '电流积分与容量', '梯度配方']) {
+      for (final name in ['循环数据分析', '锂金属测试分析', '电流积分与容量', '梯度配方', '幻影坦克隐藏图']) {
         await tester.enterText(find.byType(TextField), name);
         await tester.pumpAndSettle();
         expect(find.text('没有匹配的工具，试试其他关键词'), findsOneWidget);

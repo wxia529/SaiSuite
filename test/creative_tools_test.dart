@@ -107,20 +107,6 @@ void main() {
     expect(split['frames'], 2);
     expect(ZipDecoder().decodeBytes(split['bytes'] as Uint8List).length, 3);
   });
-  test('phantom alpha matches light/dark compositing expectations', () {
-    final light = img.Image(width: 32, height: 32)
-      ..clear(img.ColorRgb8(128, 128, 128));
-    final dark = img.Image(width: 32, height: 32)
-      ..clear(img.ColorRgb8(64, 64, 64));
-    final result = creativeImageJob({
-      'action': 'phantom',
-      'bytes': img.encodePng(light),
-      'other': img.encodePng(dark),
-    });
-    final p = img.decodePng(result['bytes'] as Uint8List)!.getPixel(5, 5);
-    expect(p.r * p.a / 255, closeTo(32, 1));
-    expect(p.r * p.a / 255 + 255 - p.a, closeTo(191.5, 1));
-  });
   testWidgets('GIF loop toggle controls actual Flutter playback', (
     tester,
   ) async {

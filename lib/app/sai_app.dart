@@ -152,7 +152,6 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           'B01' ||
           'B02' ||
           'B03' ||
-          'B06' ||
           'B07' ||
           'B10' => ImageStudioPage(tool: tool, state: widget.state),
           'A01' => PalettePage(tool: tool, state: widget.state),

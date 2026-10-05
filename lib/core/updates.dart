@@ -10,7 +10,7 @@ import 'update_links.dart';
 
 export 'update_links.dart';
 
-const appVersion = '1.4.2';
+const appVersion = '1.4.3';
 const updateChannel = SaiChannel('saisuite/updates');
 
 class ReleaseVersion implements Comparable<ReleaseVersion> {
